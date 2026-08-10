@@ -32,6 +32,7 @@ target_include_directories(abox_cjson PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/compone
 
 add_library(abox_ota STATIC
     components/ota/ota_flash.c
+    components/ota/ota_ec_at.c
 )
 add_library(abox::ota ALIAS abox_ota)
 target_include_directories(abox_ota PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)

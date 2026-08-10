@@ -69,3 +69,8 @@ void ABox_PortLog(const char *fmt, ...)
     line[sizeof(line) - 1U] = '\0';
     g_port.log_write(g_port.context, line);
 }
+
+int ABox_PortOtaIsReadingRaw(void)
+{
+    return (g_port_bound && g_port.ota_is_reading_raw) ? g_port.ota_is_reading_raw(g_port.context) : 0;
+}

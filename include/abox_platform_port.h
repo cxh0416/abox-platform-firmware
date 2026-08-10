@@ -15,6 +15,7 @@ typedef int (*ABox_FlashErasePageFn)(void *context, uint32_t address);
 typedef void (*ABox_FlashEndFn)(void *context);
 typedef void (*ABox_CriticalFn)(void *context);
 typedef void (*ABox_LogWriteFn)(void *context, const char *line);
+typedef int (*ABox_OtaIsReadingRawFn)(void *context);
 
 typedef struct {
     uint32_t app_start_addr;
@@ -33,6 +34,7 @@ typedef struct {
     ABox_CriticalFn enter_critical;
     ABox_CriticalFn exit_critical;
     ABox_LogWriteFn log_write;
+    ABox_OtaIsReadingRawFn ota_is_reading_raw;
     const ABoxFlashLayout *flash_layout;
 } ABoxPlatformPort;
 
@@ -49,6 +51,7 @@ int ABox_PortFlashWrite(uint32_t address, const uint8_t *data, uint32_t length);
 int ABox_PortFlashErasePage(uint32_t address);
 void ABox_PortFlashEnd(void);
 void ABox_PortLog(const char *fmt, ...);
+int ABox_PortOtaIsReadingRaw(void);
 
 #ifdef __cplusplus
 }
