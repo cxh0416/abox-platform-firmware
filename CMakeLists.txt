@@ -23,6 +23,12 @@ target_compile_definitions(abox_core
         ABOX_PLATFORM_VERSION_PATCH=${PROJECT_VERSION_PATCH}
 )
 
+add_library(abox_cjson STATIC
+    components/cjson/cJSON.c
+)
+add_library(abox::cjson ALIAS abox_cjson)
+target_include_directories(abox_cjson PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/components/cjson)
+
 add_library(abox_boot INTERFACE)
 add_library(abox::boot ALIAS abox_boot)
 target_link_libraries(abox_boot INTERFACE abox::core)

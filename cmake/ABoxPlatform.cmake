@@ -3,7 +3,7 @@ function(abox_platform_attach target)
         message(FATAL_ERROR "abox_platform_attach: target '${target}' does not exist")
     endif()
 
-    target_link_libraries(${target} abox::core)
+    target_link_libraries(${target} abox::core abox::cjson)
 
     if(ABOX_PLATFORM_SCHEDULER STREQUAL "FREERTOS")
         target_link_libraries(${target} abox::port_freertos)

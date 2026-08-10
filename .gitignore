@@ -8,3 +8,4 @@ dist/
 *.map
 *.o
 *.d
+baseline.json
