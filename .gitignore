@@ -1,5 +1,6 @@
 build/
 build-*/
+build_host*/
 out/
 dist/
 *.bin
