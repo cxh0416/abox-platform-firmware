@@ -8,6 +8,7 @@ set(CMAKE_C_EXTENSIONS ON)
 
 add_library(abox_core STATIC
     src/abox_platform_config.c
+    src/abox_platform_port.c
 )
 add_library(abox::core ALIAS abox_core)
 
@@ -28,6 +29,13 @@ add_library(abox_cjson STATIC
 )
 add_library(abox::cjson ALIAS abox_cjson)
 target_include_directories(abox_cjson PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/components/cjson)
+
+add_library(abox_ota STATIC
+    components/ota/ota_flash.c
+)
+add_library(abox::ota ALIAS abox_ota)
+target_include_directories(abox_ota PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(abox_ota PUBLIC abox::core)
 
 add_library(abox_boot INTERFACE)
 add_library(abox::boot ALIAS abox_boot)

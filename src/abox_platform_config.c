@@ -30,7 +30,11 @@ int ABox_ProductConfigIsValid(const ABoxProductConfig *config)
 int ABox_PlatformPortIsValid(const ABoxPlatformPort *port)
 {
     if (port == 0 || port->get_tick_ms == 0 || port->uart_write == 0) return 0;
-    if (port->flash_write == 0 || port->flash_erase_page == 0) return 0;
+    if (port->flash_begin == 0 || port->flash_write == 0 || port->flash_erase_page == 0 ||
+        port->flash_end == 0 || port->flash_layout == 0) return 0;
     if (port->enter_critical == 0 || port->exit_critical == 0) return 0;
+    if (port->flash_layout->app_start_addr == 0U ||
+        port->flash_layout->ota_info_addr <= port->flash_layout->app_start_addr ||
+        port->flash_layout->flash_page_size == 0U) return 0;
     return 1;
 }
