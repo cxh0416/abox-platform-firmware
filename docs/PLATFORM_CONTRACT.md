@@ -6,6 +6,10 @@ The platform owns scheduler-neutral interfaces and reusable handwritten firmware
 components. CubeMX `.ioc` files, generated HAL/CMSIS sources, and product
 business protocols remain in each product repository during the migration.
 
+The first extracted component is the byte-identical cJSON implementation under
+`components/cjson`; products with a deliberately divergent cJSON copy can set
+`ABOX_PLATFORM_USE_CJSON=OFF` while their protocol behavior is being compared.
+
 ## Compatibility
 
 - Existing MQTT topics, JSON fields, CAN/RS485 frames, OTA addresses, and artifact
@@ -26,3 +30,7 @@ adapter. Shared code may not include FreeRTOS headers.
 Every product release records the product commit, platform commit, compiler
 version, App/Boot sizes, Flash layout result, and SHA-256 values. Build success
 does not constitute hardware or OTA validation.
+
+Product wrappers call `tools/build_product_release.ps1`, which emits App, Boot,
+optional combined images, and `release.manifest.json` under the product's
+`dist/` directory.
