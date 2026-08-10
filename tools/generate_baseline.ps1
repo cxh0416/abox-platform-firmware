@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string] $Workspace = (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent),
-    [string] $Output = (Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'baseline.json')
+    [string] $Output = (Join-Path (Split-Path $PSScriptRoot -Parent) 'docs/baseline.json')
 )
 
 $projects = Get-ChildItem -LiteralPath $Workspace -Directory |
