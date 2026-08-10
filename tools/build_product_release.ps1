@@ -4,13 +4,57 @@ param(
     [Parameter(Mandatory = $true)] [string] $AppTarget,
     [Parameter(Mandatory = $true)] [string] $BootTarget,
     [ValidateSet('Debug', 'Release')] [string] $Configuration = 'Release',
-    [string] $CombinedName
+    [string] $CombinedName,
+    [Parameter(Mandatory = $true)] [string] $AppLinker,
+    [Parameter(Mandatory = $true)] [string] $BootLinker
 )
 
 $ErrorActionPreference = 'Stop'
 $product = (Resolve-Path -LiteralPath $ProductRoot).Path
 $dist = Join-Path $product 'dist'
 New-Item -ItemType Directory -Force -Path $dist | Out-Null
+$platform = Join-Path $product 'platform'
+
+function Get-GitValue([string] $Repo, [string[]] $Arguments) {
+    $value = (& git -C $Repo @Arguments 2>$null | Out-String).Trim()
+    if ([string]::IsNullOrWhiteSpace($value)) { throw "Could not read git metadata from $Repo" }
+    return $value
+}
+
+function Get-GitDirty([string] $Repo) {
+    $status = (& git -C $Repo status --porcelain 2>$null | Out-String).Trim()
+    return -not [string]::IsNullOrWhiteSpace($status)
+}
+
+function Get-VersionLine([string] $Command, [string[]] $Arguments) {
+    $output = & $Command @Arguments 2>&1 | Select-Object -First 1
+    if ($LASTEXITCODE -ne 0 -or $null -eq $output) { throw "Could not read tool version: $Command" }
+    return ([string]$output).Trim()
+}
+
+function Resolve-ProductPath([string] $RelativePath) {
+    $path = Join-Path $product $RelativePath
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing product file: $path" }
+    return (Resolve-Path -LiteralPath $path).Path
+}
+
+$appLinkerPath = Resolve-ProductPath $AppLinker
+$bootLinkerPath = Resolve-ProductPath $BootLinker
+$validateScript = Join-Path $platform 'tools/validate_flash_layout.ps1'
+if (-not (Test-Path -LiteralPath $validateScript -PathType Leaf)) { throw "Missing platform flash validator: $validateScript" }
+
+& $validateScript -BootLinker $bootLinkerPath -AppLinker $appLinkerPath | Out-Host
+if ($LASTEXITCODE -ne 0) { throw 'Flash layout validation failed' }
+
+$productCommit = Get-GitValue $product @('rev-parse', 'HEAD')
+$platformCommit = Get-GitValue $platform @('rev-parse', 'HEAD')
+$productDirty = Get-GitDirty $product
+$platformDirty = Get-GitDirty $platform
+$toolchain = [ordered]@{
+    arm_none_eabi_gcc = Get-VersionLine 'arm-none-eabi-gcc' @('--version')
+    cmake = Get-VersionLine 'cmake' @('--version')
+    ninja = Get-VersionLine 'ninja' @('--version')
+}
 
 function Invoke-ProductBuild([string] $role, [string] $targetName) {
     $source = Join-Path $product $role.ToLowerInvariant()
@@ -54,11 +98,15 @@ if ($CombinedName) {
     $artifacts += [pscustomobject]@{ name = $CombinedName; path = $fullOut; size = $fullBytes.Length; sha256 = (Get-FileHash $fullOut -Algorithm SHA256).Hash }
 }
 
-$platformCommit = (& git -C (Join-Path $product 'platform') rev-parse HEAD 2>$null).Trim()
 $manifest = [pscustomobject]@{
+    manifest_version = 2
     product = Split-Path $product -Leaf
     configuration = $Configuration
+    product_commit = $productCommit
+    product_dirty = $productDirty
     platform_commit = $platformCommit
+    platform_dirty = $platformDirty
+    toolchain = $toolchain
     artifacts = $artifacts
 }
 $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $dist 'release.manifest.json') -Encoding UTF8
