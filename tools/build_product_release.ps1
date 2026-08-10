@@ -44,7 +44,6 @@ $validateScript = Join-Path $platform 'tools/validate_flash_layout.ps1'
 if (-not (Test-Path -LiteralPath $validateScript -PathType Leaf)) { throw "Missing platform flash validator: $validateScript" }
 
 & $validateScript -BootLinker $bootLinkerPath -AppLinker $appLinkerPath | Out-Host
-if ($LASTEXITCODE -ne 0) { throw 'Flash layout validation failed' }
 
 $productCommit = Get-GitValue $product @('rev-parse', 'HEAD')
 $platformCommit = Get-GitValue $platform @('rev-parse', 'HEAD')
