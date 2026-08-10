@@ -27,9 +27,10 @@ function Get-GitDirty([string] $Repo) {
 }
 
 function Get-VersionLine([string] $Command, [string[]] $Arguments) {
-    $output = & $Command @Arguments 2>&1 | Select-Object -First 1
-    if ($LASTEXITCODE -ne 0 -or $null -eq $output) { throw "Could not read tool version: $Command" }
-    return ([string]$output).Trim()
+    $output = @(& $Command @Arguments 2>&1)
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0 -or $output.Count -eq 0) { throw "Could not read tool version: $Command" }
+    return ([string]$output[0]).Trim()
 }
 
 function Resolve-ProductPath([string] $RelativePath) {
