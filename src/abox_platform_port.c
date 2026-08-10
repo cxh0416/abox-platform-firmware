@@ -74,3 +74,15 @@ int ABox_PortOtaIsReadingRaw(void)
 {
     return (g_port_bound && g_port.ota_is_reading_raw) ? g_port.ota_is_reading_raw(g_port.context) : 0;
 }
+
+void ABox_PortEcPowerEnableWrite(uint8_t level)
+{
+    if (g_port_bound && g_port.ec_power_enable_write)
+        g_port.ec_power_enable_write(g_port.context, level ? 1U : 0U);
+}
+
+void ABox_PortEcPwrkeyWrite(uint8_t level)
+{
+    if (g_port_bound && g_port.ec_pwrkey_write)
+        g_port.ec_pwrkey_write(g_port.context, level ? 1U : 0U);
+}

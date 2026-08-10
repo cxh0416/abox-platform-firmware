@@ -58,10 +58,10 @@ uint8_t OTA_Flash_Begin(void)
     const ABoxFlashLayout *layout = ota_layout();
     uint32_t address;
 
-    if (!layout || (layout->ota_info_addr <= layout->app_start_addr) || !ABox_PortFlashBegin()) return 0U;
-
+    if (!layout || (layout->ota_info_addr <= layout->app_start_addr)) return 0U;
     if (g_flash_started) ABox_PortFlashEnd();
     g_flash_started = 0U;
+    if (!ABox_PortFlashBegin()) return 0U;
     g_write_addr = layout->app_start_addr;
     g_pending_len = 0U;
     memset(g_pending, 0xFF, sizeof(g_pending));

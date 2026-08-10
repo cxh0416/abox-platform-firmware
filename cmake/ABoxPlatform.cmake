@@ -4,6 +4,7 @@ function(abox_platform_attach target)
     endif()
 
     target_link_libraries(${target} abox::core)
+    target_link_libraries(${target} abox::ec_power)
     if(NOT DEFINED ABOX_PLATFORM_USE_CJSON OR ABOX_PLATFORM_USE_CJSON)
         target_link_libraries(${target} abox::cjson)
     endif()
@@ -24,7 +25,7 @@ function(abox_platform_attach_boot target)
         message(FATAL_ERROR "abox_platform_attach_boot: target '${target}' does not exist")
     endif()
 
-    target_link_libraries(${target} abox::boot abox::ota)
+    target_link_libraries(${target} abox::boot abox::ota abox::ec_power)
 
     if(ABOX_PRODUCT_CONFIG_DIR)
         target_include_directories(${target} PRIVATE "${ABOX_PRODUCT_CONFIG_DIR}")

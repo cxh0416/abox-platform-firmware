@@ -38,6 +38,13 @@ add_library(abox::ota ALIAS abox_ota)
 target_include_directories(abox_ota PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(abox_ota PUBLIC abox::core)
 
+add_library(abox_ec_power STATIC
+    components/ec_power/ec_power.c
+)
+add_library(abox::ec_power ALIAS abox_ec_power)
+target_include_directories(abox_ec_power PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(abox_ec_power PUBLIC abox::core)
+
 add_library(abox_boot INTERFACE)
 add_library(abox::boot ALIAS abox_boot)
 target_link_libraries(abox_boot INTERFACE abox::core)
@@ -63,4 +70,12 @@ if(BUILD_TESTING AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     add_executable(abox_ota_flash_test tests/ota_flash_test.c)
     target_link_libraries(abox_ota_flash_test PRIVATE abox::ota)
     add_test(NAME abox_ota_flash_test COMMAND abox_ota_flash_test)
+
+    add_executable(abox_ota_ec_at_test tests/ota_ec_at_test.c)
+    target_link_libraries(abox_ota_ec_at_test PRIVATE abox::ota)
+    add_test(NAME abox_ota_ec_at_test COMMAND abox_ota_ec_at_test)
+
+    add_executable(abox_ec_power_test tests/ec_power_test.c)
+    target_link_libraries(abox_ec_power_test PRIVATE abox::ec_power)
+    add_test(NAME abox_ec_power_test COMMAND abox_ec_power_test)
 endif()
