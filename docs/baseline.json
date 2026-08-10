@@ -1,0 +1,96 @@
+﻿[
+    {
+        "product":  "Airport_vehicle",
+        "has_git":  true,
+        "files":  [
+                      "app/ATbox_V1.0.ioc",
+                      "app/CMakeLists.txt",
+                      "app/CMakePresets.json",
+                      "app/STM32F105XX_FLASH.ld",
+                      "app/cmake/stm32cubemx/CMakeLists.txt",
+                      "app/MDK-ARM/ATbox_V1.0.uvprojx",
+                      "app/MDK-ARM/ATbox_V1.0/ATbox_V1_0.sct",
+                      "boot/ATbox_BootLoader.ioc",
+                      "boot/CMakeLists.txt",
+                      "boot/CMakePresets.json",
+                      "boot/STM32F105XX_FLASH.ld",
+                      "boot/cmake/stm32cubemx/CMakeLists.txt",
+                      "boot/MDK-ARM/ATbox_BootLoader.uvprojx",
+                      "boot/MDK-ARM/ATbox_BootLoader/ATbox_BootLoader.sct",
+                      "platform/CMakeLists.txt"
+                  ]
+    },
+    {
+        "product":  "CageDumper",
+        "has_git":  true,
+        "files":  [
+                      "app/CageDumper_App.ioc",
+                      "app/CMakeLists.txt",
+                      "app/CMakePresets.json",
+                      "app/STM32F105XX_FLASH.ld",
+                      "app/cmake/stm32cubemx/CMakeLists.txt",
+                      "boot/CageDumper_Boot.ioc",
+                      "boot/CMakeLists.txt",
+                      "boot/CMakePresets.json",
+                      "boot/STM32F105XX_FLASH.ld",
+                      "boot/cmake/stm32cubemx/CMakeLists.txt",
+                      "platform/CMakeLists.txt"
+                  ]
+    },
+    {
+        "product":  "LockCtrlBoard_cheweishi",
+        "has_git":  true,
+        "files":  [
+                      "app/CMakeLists.txt",
+                      "app/CMakePresets.json",
+                      "app/LockCtrlBoard_App.ioc",
+                      "app/STM32F105XX_FLASH.ld",
+                      "app/cmake/stm32cubemx/CMakeLists.txt",
+                      "app/MDK-ARM/LockCtrlBoard_App.uvprojx",
+                      "app/MDK-ARM/LockCtrlBoard_App/LockCtrlBoard_App.sct",
+                      "boot/CMakeLists.txt",
+                      "boot/CMakePresets.json",
+                      "boot/LockCtrlBoard_Boot.ioc",
+                      "boot/STM32F105XX_FLASH.ld",
+                      "boot/cmake/stm32cubemx/CMakeLists.txt",
+                      "boot/MDK-ARM/LockCtrlBoard_Boot.uvprojx",
+                      "boot/MDK-ARM/LockCtrlBoard_Boot/LockCtrlBoard_Boot.sct",
+                      "docs/LockCtrlBoard_App/LockCtrlBoard_App.sct",
+                      "platform/CMakeLists.txt"
+                  ]
+    },
+    {
+        "product":  "Meal_Delivery_Vehicle",
+        "has_git":  true,
+        "files":  [
+                      "app/CMakeLists.txt",
+                      "app/CMakePresets.json",
+                      "app/LockCtrlBoard_App.ioc",
+                      "app/STM32F105XX_FLASH.ld",
+                      "app/cmake/stm32cubemx/CMakeLists.txt",
+                      "boot/CMakeLists.txt",
+                      "boot/CMakePresets.json",
+                      "boot/LockCtrlBoard_Boot.ioc",
+                      "boot/STM32F105xx_FLASH.ld",
+                      "boot/cmake/stm32cubemx/CMakeLists.txt",
+                      "platform/CMakeLists.txt"
+                  ]
+    },
+    {
+        "product":  "Sweeper_VCU",
+        "has_git":  true,
+        "files":  [
+                      "app/AirportTbox_VCU_App.ioc",
+                      "app/CMakeLists.txt",
+                      "app/CMakePresets.json",
+                      "app/STM32F105xx_FLASH.ld",
+                      "app/cmake/stm32cubemx/CMakeLists.txt",
+                      "boot/AirportTbox_VCU_Boot.ioc",
+                      "boot/CMakeLists.txt",
+                      "boot/CMakePresets.json",
+                      "boot/STM32F105XX_FLASH.ld",
+                      "boot/cmake/stm32cubemx/CMakeLists.txt",
+                      "platform/CMakeLists.txt"
+                  ]
+    }
+]
