@@ -114,8 +114,11 @@ void OTA_EC_SendAT(const char *cmd)
 
     if (!cmd) return;
     n = snprintf(buf, sizeof(buf), "%s\r\n", cmd);
-    if (n > 0 && ABox_PortUartWrite((const uint8_t *)buf, (uint32_t)n))
+    if (n > 0)
+    {
+        (void)ABox_PortUartWrite((const uint8_t *)buf, (uint32_t)n);
         ABox_PortLog("[EC] TX: %s\r\n", cmd);
+    }
 }
 
 void OTA_EC_SendAT_F(const char *fmt, ...)
@@ -198,6 +201,8 @@ void OTA_EC_AT_Task(void)
         default: g_ota_ec.state = OTA_EC_ST_IDLE; break;
     }
 }
+
+void OTA_EC_AT_ProcessRx(void) {}
 
 uint8_t OTA_EC_IsReady(void) { return (g_ota_ec.state == OTA_EC_ST_READY) ? 1U : 0U; }
 uint8_t OTA_EC_IsSimReady(void) { return g_ota_ec.sim_ready; }

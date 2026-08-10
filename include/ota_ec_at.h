@@ -9,6 +9,7 @@ extern "C" {
 
 void OTA_EC_AT_Init(void);
 void OTA_EC_AT_Task(void);
+void OTA_EC_AT_ProcessRx(void);
 void OTA_EC_AT_OnRx(uint8_t *data, uint16_t len);
 void OTA_EC_SendAT(const char *cmd);
 void OTA_EC_SendAT_F(const char *fmt, ...);

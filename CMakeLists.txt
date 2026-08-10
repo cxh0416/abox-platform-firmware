@@ -59,4 +59,8 @@ if(BUILD_TESTING AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     add_executable(abox_platform_config_test tests/abox_platform_config_test.c)
     target_link_libraries(abox_platform_config_test PRIVATE abox::core)
     add_test(NAME abox_platform_config_test COMMAND abox_platform_config_test)
+
+    add_executable(abox_ota_flash_test tests/ota_flash_test.c)
+    target_link_libraries(abox_ota_flash_test PRIVATE abox::ota)
+    add_test(NAME abox_ota_flash_test COMMAND abox_ota_flash_test)
 endif()
