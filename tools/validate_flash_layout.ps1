@@ -6,6 +6,9 @@ param(
     [uint32] $FlashSize = 0x40000,
     [uint32] $BootSize = 0x8000,
     [uint32] $AppStart = 0x08008000,
+    [uint32] $BootStateAStart = 0x0803E800,
+    [uint32] $BootStateBStart = 0x0803F000,
+    [uint32] $BootStatePageSize = 0x800,
     [uint32] $OtaInfoStart = 0x0803F800,
     [uint32] $OtaInfoSize = 0x800
 )
@@ -39,5 +42,10 @@ Assert-Equal 'App origin' $app.Origin $AppStart
 $otaEnd = [uint64]$OtaInfoStart + $OtaInfoSize
 $appEnd = [uint64]$app.Origin + $app.Length
 if ($appEnd -gt $OtaInfoStart) { throw 'App Flash region overlaps OTA info page' }
+if ($appEnd -gt $BootStateAStart) { throw 'App Flash region overlaps BootState A' }
+if ($BootStateAStart + $BootStatePageSize -gt $BootStateBStart) { throw 'BootState A overlaps BootState B' }
+if ($BootStateBStart + $BootStatePageSize -gt $OtaInfoStart) { throw 'BootState B overlaps OTA info page' }
 if ($otaEnd -gt ([uint64]$FlashBase + $FlashSize)) { throw 'OTA info page is outside declared device Flash capacity' }
+Write-Host "PASS BootState A 0x$('{0:X8}' -f $BootStateAStart)-0x$('{0:X8}' -f ($BootStateAStart + $BootStatePageSize - 1))"
+Write-Host "PASS BootState B 0x$('{0:X8}' -f $BootStateBStart)-0x$('{0:X8}' -f ($BootStateBStart + $BootStatePageSize - 1))"
 Write-Host "PASS OTA page 0x$('{0:X8}' -f $OtaInfoStart)-0x$('{0:X8}' -f ($otaEnd - 1))"
