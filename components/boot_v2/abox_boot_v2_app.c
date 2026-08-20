@@ -175,6 +175,36 @@ static const char *provision_stage(void)
     return "UNKNOWN";
 }
 
+static const char *download_stage(void)
+{
+    switch (g.state) {
+    case ST_MQTT_DISC: return "MQTT_DISC";
+    case ST_MQTT_CLOSE: return "MQTT_CLOSE";
+    case ST_HTTP_STOP: return "HTTP_STOP";
+    case ST_PDP_DEACT: return "PDP_DEACT";
+    case ST_PDP_ACT: return "PDP_ACT";
+    case ST_TLS_VERSION: return "TLS_VERSION";
+    case ST_TLS_LEVEL: return "TLS_LEVEL";
+    case ST_TLS_SNI: return "TLS_SNI";
+    case ST_TLS_CA: return "TLS_CA";
+    case ST_HTTP_CONTEXT: return "HTTP_CONTEXT";
+    case ST_HTTP_TLS: return "HTTP_TLS";
+    case ST_URL: return "URL";
+    case ST_FILE_DELETE: return "FILE_DELETE";
+    case ST_FILE_OPEN: return "FILE_OPEN";
+    case ST_RANGE_GET: return "RANGE_GET";
+    case ST_HTTP_READ: return "HTTP_READ";
+    case ST_FILE_WRITE: return "FILE_WRITE";
+    case ST_FILE_CLOSE: return "FILE_CLOSE";
+    case ST_FILE_LIST: return "FILE_LIST";
+    case ST_VERIFY_OPEN: return "VERIFY_OPEN";
+    case ST_VERIFY_READ: return "VERIFY_READ";
+    case ST_VERIFY_CLOSE: return "VERIFY_CLOSE";
+    case ST_VERIFY: return "VERIFY";
+    default: return "UNKNOWN";
+    }
+}
+
 static int ufs_name_matches(const char *reported, const char *expected)
 {
     if (!reported || !expected) return 0;
@@ -240,6 +270,7 @@ static void provision_fail(uint32_t error)
 static void download_fail(uint32_t error)
 {
     const uint8_t was_seeding = g.seeding;
+    const char *stage = download_stage();
 
     if (g.port.cancel) g.port.cancel(g.port.context);
     resume_mqtt();
@@ -251,7 +282,7 @@ static void download_fail(uint32_t error)
     g.handle_valid = 0U;
     g.retry_due = now() + ABOX_BOOT_V2_TERMINAL_RETRY_MS;
     g.state = ST_ERROR;
-    log_failure("Boot V2 staging", error, "DOWNLOAD");
+    log_failure("Boot V2 staging", error, stage);
 }
 
 static void begin_ca_upload(void)
@@ -480,6 +511,7 @@ static void command_succeeded(void)
         if (g.http_status != 206U || g.http_length != g.chunk_size)
             download_fail(ABOX_BOOT_V2_APP_ERROR_HTTP);
         else {
+            g.chunk_received = 0U;
             g.state = ST_HTTP_READ;
             (void)submit_command("AT+QHTTPREAD=80", 90000U);
         }
@@ -750,6 +782,7 @@ void ABoxBootV2App_Task(void)
         start_provisioning();
         return;
     }
+    if (g.state == ST_ERROR || g.state == ST_RETRY) return;
 
     if (g.provisioned && !g.busy && !g.seed_attempted && stable_slot_needs_seed()) {
         ABoxBootV2AppRequest request;
@@ -819,9 +852,6 @@ void ABoxBootV2App_Task(void)
         (void)snprintf(command, sizeof(command), "AT+QHTTPGETEX=80,%lu,%lu",
                        (unsigned long)g.downloaded, (unsigned long)g.chunk_size);
         (void)submit_command(command, 90000U);
-        break;
-    case ST_HTTP_READ:
-        g.chunk_received = 0U;
         break;
     case ST_VERIFY_READ: {
         uint32_t length = g.expected_size - g.read_size;

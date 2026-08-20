@@ -330,7 +330,10 @@ static void test_candidate_download(void)
     complete(ABOX_BOOT_V2_AT_OK);
     line("CONNECT");
     assert(raw_wanted == sizeof(image));
-    raw(image, sizeof(image));
+    raw(image, sizeof(image) / 2U);
+    ABoxBootV2App_Task();
+    assert(pending);
+    raw(image + sizeof(image) / 2U, sizeof(image) / 2U);
     complete(ABOX_BOOT_V2_AT_OK);
     line("CONNECT");
     ABoxBootV2App_Task();
@@ -361,6 +364,38 @@ static void test_candidate_download(void)
     assert(strcmp(state.image_version, "abox-v2-next") == 0);
 }
 
+static void test_download_failure_waits_before_retry(void)
+{
+    ABoxBootV2AppRequest request;
+
+    prepare_flash();
+    reset_transport();
+    init_app();
+    complete_probes();
+    finish_existing_ca();
+
+    memset(&request, 0, sizeof(request));
+    snprintf(request.url, sizeof(request.url),
+             "https://ota.example:20443/fw-revisions/meal_delivery_vehicle/abox-v2-next/meal_delivery_vehicle_app.bin");
+    snprintf(request.version, sizeof(request.version), "abox-v2-next");
+    request.size = 128U;
+    request.crc32 = 1U;
+    assert(ABoxBootV2App_Start(&request));
+    complete(ABOX_BOOT_V2_AT_ERROR); /* QMTDISC fails */
+    assert(ABoxBootV2App_LastError() == ABOX_BOOT_V2_APP_ERROR_UFS);
+    assert(strstr(last_log, "MQTT_DISC") != 0);
+    assert(!pending);
+    ABoxBootV2App_Task();
+    assert(!pending);
+    tick_now += 299999U;
+    ABoxBootV2App_Task();
+    assert(!pending);
+    ++tick_now;
+    ABoxBootV2App_Task();
+    assert(pending);
+    assert(strstr(command, "QFLDS") != 0);
+}
+
 int main(void)
 {
     bind_platform();
@@ -369,5 +404,6 @@ int main(void)
     test_missing_ca_is_uploaded_and_verified();
     test_ca_error_is_distinct();
     test_candidate_download();
+    test_download_failure_waits_before_retry();
     return 0;
 }

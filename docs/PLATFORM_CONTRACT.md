@@ -1,6 +1,6 @@
 # A-Box Platform Contract
 
-This document describes the current `ABox_Platform v0.2.1` integration contract.
+This document describes the current `ABox_Platform v0.2.2` integration contract.
 
 ## Boundary
 
