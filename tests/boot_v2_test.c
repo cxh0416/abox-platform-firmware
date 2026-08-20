@@ -28,11 +28,13 @@ int main(void)
 {
     static const ABoxFlashLayout legacy={0x08008000U,0x0803F800U,0x800U};
     static const ABoxPlatformPort port={0,tick,uart,begin,write_flash,erase,end,critical,critical,0,0,&legacy,0,0,read_flash};
-    static const ABoxBootV2Layout layout={0x0803E800U,0x0803F000U,0x800U,0x08008000U,0x0803E7FFU,0x20000000U,0x2000FFFFU};
+    static const ABoxBootV2Layout layout={0x0803E800U,0x0803F000U,0x800U,0x08008000U,0x0803E7FFU,0x20000000U,0x20010000U};
     static const ABoxBootV2BootPort boot_port={0,boot_flash_valid,boot_install,boot_vector,boot_jump,boot_reset,boot_delay,0};
-    ABoxBootV2Record r,out; ABoxBootV2Diagnostics d; ABoxBootV2Descriptor desc;
+    ABoxBootV2Record r,out; ABoxBootV2Diagnostics d; ABoxBootV2Descriptor desc; uint8_t vector[8]; uint32_t sp,reset;
     memset(flash_mem,0xFF,sizeof(flash_mem));assert(sizeof(ABoxBootV2Record)==112U);assert(sizeof(ABoxBootV2Descriptor)==256U);
     assert(ABox_PlatformPortBind(&port));assert(ABoxBootV2_StateBindLayout(&layout));
+    sp=layout.sram_end_addr;reset=layout.app_start_addr+1U;memcpy(vector,&sp,4U);memcpy(vector+4U,&reset,4U);assert(ABoxBootV2_ImageVectorValid(vector));
+    sp=layout.sram_end_addr+4U;memcpy(vector,&sp,4U);assert(!ABoxBootV2_ImageVectorValid(vector));
     memset(&r,0,sizeof(r));r.state=ABOX_BOOT_V2_CONFIRMED;r.stable_slot=0U;r.stable_image_size=16U;r.stable_image_crc32=0x12345678U;assert(ABoxBootV2_StateSave(&r));assert(ABoxBootV2_StateLoad(&out));assert(out.sequence==1U&&out.state==ABOX_BOOT_V2_CONFIRMED);
     r=out;r.state=ABOX_BOOT_V2_TRIAL;r.candidate_slot=1U;r.image_size=32U;r.image_crc32=0x89ABCDEFU;assert(ABoxBootV2_StateSave(&r));assert(ABoxBootV2_StateDiagnostics(&d));assert(d.page_a_valid&&d.page_b_valid&&d.selected_sequence==2U);
     assert(ABoxBootV2_Confirm());assert(ABoxBootV2_StateLoad(&out));assert(out.state==ABOX_BOOT_V2_CONFIRMED&&out.stable_slot==1U);

@@ -6,6 +6,7 @@
 _Static_assert(sizeof(ABoxBootV2Record) == 112U, "Boot State V3 ABI changed");
 static ABoxBootV2Layout g_layout;
 static uint8_t g_bound;
+void ABoxBootV2_ImageBindLayoutInternal(const ABoxBootV2Layout *layout);
 
 uint32_t ABoxBootV2_Crc32(const void *data, uint32_t length)
 {
@@ -18,7 +19,7 @@ uint32_t ABoxBootV2_Crc32(const void *data, uint32_t length)
 int ABoxBootV2_StateBindLayout(const ABoxBootV2Layout *layout)
 {
     if (!layout || !layout->state_a_addr || !layout->state_b_addr || layout->state_a_addr == layout->state_b_addr || layout->page_size < sizeof(ABoxBootV2Record)) return 0;
-    g_layout = *layout; g_bound = 1U; return 1;
+    g_layout = *layout; ABoxBootV2_ImageBindLayoutInternal(layout); g_bound = 1U; return 1;
 }
 static int read_record(uint32_t address, ABoxBootV2Record *record) { return ABox_PortFlashRead(address, (uint8_t *)record, sizeof(*record)); }
 static int valid(const ABoxBootV2Record *r) { return r && r->magic == ABOX_BOOT_V2_STATE_MAGIC && r->version == ABOX_BOOT_V2_STATE_VERSION && r->length == sizeof(*r) && r->record_crc32 == ABoxBootV2_Crc32(r, (uint32_t)offsetof(ABoxBootV2Record, record_crc32)); }
