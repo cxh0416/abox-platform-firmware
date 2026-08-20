@@ -1,6 +1,6 @@
 # A-Box Platform Contract
 
-This document describes the current `ABox_Platform v0.2.0` integration contract.
+This document describes the current `ABox_Platform v0.2.1` integration contract.
 
 ## Boundary
 
@@ -62,7 +62,14 @@ HAL, EC800, and scheduler services.
   `INSTALL_PENDING`. Network download code is not linked into Boot.
 - A newly flashed App provisions the running immutable revision into the stable
   UFS slot before reporting `otaReady=true`. Provisioning failure must not stop
-  local business, but it blocks platform OTA and is retried by the product.
+  local business, but it blocks platform OTA. The shared App component verifies
+  the existing CA file before reuse, repairs a missing or mismatched file, retries
+  transient probe/CA failures after 5, 15, and 60 seconds, and retries terminal
+  failures every five minutes. Probe failures report `1001`; CA file operations
+  report `1002`.
+- A failed automatic stable-slot download clears the one-shot attempt guard before
+  transport reprovisioning, so the five-minute retry can attempt the immutable
+  running revision again without requiring another MCU reset.
 - Boot installs only from UFS, records `INSTALLING` before destructive work,
   enters `TRIAL` after verification, and restores the stable slot after three
   qualifying trial failures.

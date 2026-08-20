@@ -10,6 +10,7 @@
 #define BASE 0x08000000U
 #define STATE_A 0x0803E800U
 #define STATE_B 0x0803F000U
+#define PROBE_COUNT 15U
 
 static uint8_t flash_mem[0x40000];
 static uint8_t transfer[ABOX_BOOT_V2_APP_RAW_CHUNK];
@@ -18,11 +19,20 @@ static void *pending_user;
 static ABoxBootV2AtEventFn event_fn;
 static void *event_user;
 static char command[300];
+static char last_log[160];
 static uint8_t pending;
 static uint8_t active;
+static uint8_t payload_allowed;
 static uint8_t mqtt_paused;
 static uint32_t payload_count;
 static uint32_t raw_wanted;
+static uint32_t tick_now;
+
+static const uint8_t ca[] = "test-ca";
+static const ABoxBootV2Layout boot_layout = {
+    STATE_A, STATE_B, 0x800U, 0x08008000U, 0x0803E7FFU, 0x20000000U, 0x2000FFFFU
+};
+static const ABoxFlashLayout legacy_layout = {0x08008000U, 0x0803F800U, 0x800U};
 
 static int flash_begin(void *context) { (void)context; return 1; }
 static void flash_end(void *context) { (void)context; }
@@ -47,7 +57,7 @@ static int flash_erase(void *context, uint32_t address)
     memset(flash_mem + address - BASE, 0xFF, 0x800U);
     return 1;
 }
-static uint32_t tick(void *context) { (void)context; return 1000U; }
+static uint32_t tick(void *context) { (void)context; return tick_now; }
 static int uart(void *context, const uint8_t *data, uint32_t length)
 { (void)context; (void)data; return length != 0U; }
 static void critical(void *context) { (void)context; }
@@ -55,49 +65,128 @@ static void critical(void *context) { (void)context; }
 static int submit(void *context, const char *value, uint32_t timeout,
                   ABoxBootV2AtDoneFn done, void *user)
 {
-    (void)context; (void)timeout;
+    (void)context;
+    (void)timeout;
     assert(!pending);
     snprintf(command, sizeof(command), "%s", value);
-    pending_done = done; pending_user = user; pending = 1U; active = 1U;
+    pending_done = done;
+    pending_user = user;
+    pending = 1U;
+    active = 1U;
+    payload_allowed = 0U;
     return 1;
 }
 static int send_payload(void *context, const uint8_t *data, uint16_t length)
-{ (void)context; assert(data && length); payload_count++; return 1; }
+{
+    (void)context;
+    assert(data && length);
+    if (!payload_allowed) return 0;
+    payload_allowed = 0U;
+    ++payload_count;
+    return 1;
+}
 static int begin_raw(void *context, uint32_t length)
 { (void)context; raw_wanted = length; return 1; }
 static int has_pending(void *context) { (void)context; return pending; }
 static int is_active(void *context) { (void)context; return active; }
-static void cancel(void *context) { (void)context; pending = 0U; active = 0U; }
+static void cancel(void *context)
+{
+    (void)context;
+    pending = 0U;
+    active = 0U;
+    pending_done = 0;
+    pending_user = 0;
+}
 static void register_events(void *context, ABoxBootV2AtEventFn callback, void *user)
 { (void)context; event_fn = callback; event_user = user; }
 static void mqtt_pause(void *context, uint8_t paused) { (void)context; mqtt_paused = paused; }
 static void log_line(void *context, uint8_t level, const char *message)
-{ (void)context; (void)level; (void)message; }
+{
+    (void)context;
+    (void)level;
+    snprintf(last_log, sizeof(last_log), "%s", message ? message : "");
+}
 
 static void complete(ABoxBootV2AtResult result)
 {
     ABoxBootV2AtDoneFn callback = pending_done;
     void *user = pending_user;
     assert(pending && callback);
-    pending = 0U; active = 0U; pending_done = 0; pending_user = 0;
+    pending = 0U;
+    active = 0U;
+    pending_done = 0;
+    pending_user = 0;
     callback(result, user);
 }
-static void line(const char *value)
-{ assert(event_fn); event_fn(ABOX_BOOT_V2_AT_LINE, (const uint8_t *)value, (uint16_t)strlen(value), event_user); }
-static void raw(const uint8_t *data, uint16_t length)
-{ assert(event_fn); event_fn(ABOX_BOOT_V2_AT_RAW, data, length, event_user); }
 
-int main(void)
+static void line(const char *value)
 {
-    static const ABoxFlashLayout legacy = {0x08008000U, 0x0803F800U, 0x800U};
+    assert(event_fn);
+    if (strcmp(value, "CONNECT") == 0 || strncmp(value, "CONNECT ", 8U) == 0)
+        payload_allowed = 1U;
+    event_fn(ABOX_BOOT_V2_AT_LINE, (const uint8_t *)value,
+             (uint16_t)strlen(value), event_user);
+}
+
+static void raw(const uint8_t *data, uint16_t length)
+{
+    assert(event_fn);
+    event_fn(ABOX_BOOT_V2_AT_RAW, data, length, event_user);
+}
+
+static void reset_transport(void)
+{
+    pending_done = 0;
+    pending_user = 0;
+    event_fn = 0;
+    event_user = 0;
+    command[0] = '\0';
+    last_log[0] = '\0';
+    pending = 0U;
+    active = 0U;
+    payload_allowed = 0U;
+    mqtt_paused = 0U;
+    payload_count = 0U;
+    raw_wanted = 0U;
+    tick_now = 1000U;
+}
+
+static void bind_platform(void)
+{
     static const ABoxPlatformPort platform = {
         0, tick, uart, flash_begin, flash_write, flash_erase, flash_end,
-        critical, critical, 0, 0, &legacy, 0, 0, flash_read
+        critical, critical, 0, 0, &legacy_layout, 0, 0, flash_read
     };
-    static const ABoxBootV2Layout layout = {
-        STATE_A, STATE_B, 0x800U, 0x08008000U, 0x0803E7FFU, 0x20000000U, 0x2000FFFFU
-    };
-    static const uint8_t ca[] = "test-ca";
+    assert(ABox_PlatformPortBind(&platform));
+    assert(ABoxBootV2_StateBindLayout(&boot_layout));
+}
+
+static void prepare_flash(void)
+{
+    ABoxBootV2Record state;
+    ABoxBootV2Descriptor descriptor;
+
+    memset(flash_mem, 0xFF, sizeof(flash_mem));
+    memset(&state, 0, sizeof(state));
+    state.state = ABOX_BOOT_V2_CONFIRMED;
+    state.stable_slot = 0U;
+    state.stable_image_size = 64U;
+    state.stable_image_crc32 = 0x11111111U;
+    memcpy(state.stable_image_version, "abox-v2-stable", 15U);
+    assert(ABoxBootV2_StateSave(&state));
+
+    memset(&descriptor, 0, sizeof(descriptor));
+    descriptor.magic = ABOX_BOOT_V2_DESCRIPTOR_MAGIC;
+    descriptor.abi_version = 1U;
+    descriptor.length = sizeof(descriptor);
+    descriptor.feature_flags = ABOX_BOOT_V2_REQUIRED_FEATURES;
+    descriptor.crc32 = ABoxBootV2_Crc32(&descriptor,
+                                         (uint32_t)offsetof(ABoxBootV2Descriptor, crc32));
+    memcpy(flash_mem + ABOX_BOOT_V2_DESCRIPTOR_ADDR - BASE, &descriptor, sizeof(descriptor));
+}
+
+static void init_app(void)
+{
     ABoxBootV2AppPort port = {
         0, tick, submit, send_payload, begin_raw, has_pending, is_active,
         cancel, register_events, mqtt_pause, log_line, transfer, sizeof(transfer)
@@ -107,45 +196,99 @@ int main(void)
         "abox-v2-", "abox-v2-current", ca, sizeof(ca) - 1U,
         0x08008000U, 128U, 0x36800U
     };
-    ABoxBootV2Record state;
-    ABoxBootV2Descriptor descriptor;
-    ABoxBootV2AppRequest request;
-    uint8_t image[128];
-    uint32_t index;
-
-    memset(flash_mem, 0xFF, sizeof(flash_mem));
-    assert(ABox_PlatformPortBind(&platform));
-    assert(ABoxBootV2_StateBindLayout(&layout));
-    memset(&state, 0, sizeof(state));
-    state.state = ABOX_BOOT_V2_CONFIRMED;
-    state.stable_slot = 0U;
-    state.stable_image_size = 64U;
-    state.stable_image_crc32 = 0x11111111U;
-    memcpy(state.stable_image_version, "abox-v2-stable", 15U);
-    assert(ABoxBootV2_StateSave(&state));
-    memset(&descriptor, 0, sizeof(descriptor));
-    descriptor.magic = ABOX_BOOT_V2_DESCRIPTOR_MAGIC;
-    descriptor.abi_version = 1U;
-    descriptor.length = sizeof(descriptor);
-    descriptor.feature_flags = ABOX_BOOT_V2_REQUIRED_FEATURES;
-    descriptor.crc32 = ABoxBootV2_Crc32(&descriptor, (uint32_t)offsetof(ABoxBootV2Descriptor, crc32));
-    memcpy(flash_mem + ABOX_BOOT_V2_DESCRIPTOR_ADDR - BASE, &descriptor, sizeof(descriptor));
-
     assert(ABoxBootV2App_Init(&port, &config));
+}
+
+static void complete_probes(void)
+{
+    uint32_t index;
     assert(ABoxBootV2App_BeginProvisioning());
-    for (index = 0U; index < 11U; ++index) complete(ABOX_BOOT_V2_AT_OK);
-    assert(strstr(command, "QFDEL") != 0);
+    for (index = 0U; index < PROBE_COUNT; ++index) complete(ABOX_BOOT_V2_AT_OK);
+    assert(strstr(command, "QFOPEN=\"ota_ca.pem\",2") != 0);
+}
+
+static void finish_existing_ca(void)
+{
+    line("+QFOPEN: 4");
+    complete(ABOX_BOOT_V2_AT_OK);
+    assert(strstr(command, "QFREAD=4,7") != 0);
+    line("CONNECT 7");
+    assert(raw_wanted == sizeof(ca) - 1U);
+    raw(ca, sizeof(ca) - 1U);
+    complete(ABOX_BOOT_V2_AT_OK);
+    assert(strstr(command, "QFCLOSE=4") != 0);
+    complete(ABOX_BOOT_V2_AT_OK);
+    assert(ABoxBootV2App_IsProvisioned());
+    assert(ABoxBootV2App_LastError() == 0U);
+}
+
+static void test_probe_error_and_retry(void)
+{
+    reset_transport();
+    init_app();
+    assert(ABoxBootV2App_BeginProvisioning());
     complete(ABOX_BOOT_V2_AT_ERROR);
-    assert(strstr(command, "QFUPL") != 0);
+    assert(ABoxBootV2App_LastError() == ABOX_BOOT_V2_APP_ERROR_UNSUPPORTED);
+    assert(strcmp(ABoxBootV2App_Phase(), "RETRY_WAIT") == 0);
+    assert(strstr(last_log, "AT+QFLDS") != 0);
+    tick_now += 4999U;
+    ABoxBootV2App_Task();
+    assert(!pending);
+    ++tick_now;
+    ABoxBootV2App_Task();
+    assert(pending);
+    assert(strstr(command, "QFLDS") != 0);
+}
+
+static void test_missing_ca_is_uploaded_and_verified(void)
+{
+    reset_transport();
+    init_app();
+    complete_probes();
+    complete(ABOX_BOOT_V2_AT_ERROR);
+    assert(strcmp(command, "AT+QFOPEN?") == 0);
+    complete(ABOX_BOOT_V2_AT_OK);
+    assert(strstr(command, "QFUPL=\"ota_ca.pem\",7,30") != 0);
+    ABoxBootV2App_Task();
+    assert(payload_count == 0U);
+    line("CONNECT");
     ABoxBootV2App_Task();
     assert(payload_count == 1U);
     complete(ABOX_BOOT_V2_AT_OK);
-    assert(ABoxBootV2App_IsProvisioned());
+    assert(strstr(command, "QFOPEN=\"ota_ca.pem\",2") != 0);
+    finish_existing_ca();
+}
+
+static void test_ca_error_is_distinct(void)
+{
+    reset_transport();
+    init_app();
+    complete_probes();
+    complete(ABOX_BOOT_V2_AT_ERROR);
+    complete(ABOX_BOOT_V2_AT_OK);
+    assert(strstr(command, "QFUPL") != 0);
+    complete(ABOX_BOOT_V2_AT_ERROR);
+    assert(ABoxBootV2App_LastError() == ABOX_BOOT_V2_APP_ERROR_CA);
+    assert(strcmp(ABoxBootV2App_Phase(), "RETRY_WAIT") == 0);
+    assert(strstr(last_log, "CA_UPLOAD") != 0);
+}
+
+static void test_candidate_download(void)
+{
+    ABoxBootV2AppRequest request;
+    ABoxBootV2Record state;
+    uint8_t image[128];
+
+    reset_transport();
+    init_app();
+    complete_probes();
+    finish_existing_ca();
 
     memset(&request, 0, sizeof(request));
     snprintf(request.url, sizeof(request.url), "https://wrong.example/fw.bin");
     snprintf(request.version, sizeof(request.version), "abox-v2-next");
-    request.size = sizeof(image); request.crc32 = 1U;
+    request.size = sizeof(image);
+    request.crc32 = 1U;
     assert(!ABoxBootV2App_Start(&request));
     assert(ABoxBootV2App_LastError() == ABOX_BOOT_V2_APP_ERROR_URL);
 
@@ -157,31 +300,57 @@ int main(void)
     request.crc32 = ABoxBootV2_Crc32(image, sizeof(image));
     assert(ABoxBootV2App_Start(&request));
     assert(mqtt_paused);
-    for (index = 0U; index < 6U; ++index) complete(ABOX_BOOT_V2_AT_OK);
-    for (index = 0U; index < 5U; ++index) {
-        ABoxBootV2App_Task();
-        complete(ABOX_BOOT_V2_AT_OK);
-    }
+
+    complete(ABOX_BOOT_V2_AT_OK); /* QMTDISC */
+    complete(ABOX_BOOT_V2_AT_OK); /* QMTCLOSE */
+    complete(ABOX_BOOT_V2_AT_ERROR); /* QHTTPSTOP when already stopped */
+    complete(ABOX_BOOT_V2_AT_OK); /* QIDEACT */
+    complete(ABOX_BOOT_V2_AT_OK); /* QIACT */
+    complete(ABOX_BOOT_V2_AT_OK); /* sslversion */
+
+    ABoxBootV2App_Task(); complete(ABOX_BOOT_V2_AT_OK); /* seclevel */
+    ABoxBootV2App_Task(); complete(ABOX_BOOT_V2_AT_OK); /* sni */
+    ABoxBootV2App_Task(); complete(ABOX_BOOT_V2_AT_OK); /* CA */
+    ABoxBootV2App_Task(); complete(ABOX_BOOT_V2_AT_OK); /* HTTP context */
+    ABoxBootV2App_Task(); complete(ABOX_BOOT_V2_AT_OK); /* HTTP TLS */
+
     ABoxBootV2App_Task();
     assert(strstr(command, "QHTTPURL") != 0);
+    line("CONNECT");
     ABoxBootV2App_Task();
-    assert(payload_count == 2U);
+    assert(payload_count == 1U);
     complete(ABOX_BOOT_V2_AT_OK);
-    complete(ABOX_BOOT_V2_AT_ERROR);
-    line("+QFOPEN: 7"); complete(ABOX_BOOT_V2_AT_OK);
+    complete(ABOX_BOOT_V2_AT_ERROR); /* destination does not exist */
+    line("+QFOPEN: 7");
+    complete(ABOX_BOOT_V2_AT_OK);
+
     ABoxBootV2App_Task();
     assert(strstr(command, "QHTTPGETEX=80,0,128") != 0);
-    line("+QHTTPGET: 0,206,128"); complete(ABOX_BOOT_V2_AT_OK);
-    line("CONNECT"); assert(raw_wanted == sizeof(image)); raw(image, sizeof(image)); complete(ABOX_BOOT_V2_AT_OK);
-    ABoxBootV2App_Task(); assert(payload_count == 3U);
-    line("+QFWRITE: 128,128"); complete(ABOX_BOOT_V2_AT_OK);
+    line("+QHTTPGET: 0,206,128");
     complete(ABOX_BOOT_V2_AT_OK);
-    line("+QFLST: \"fw_slot1.bin\",128"); complete(ABOX_BOOT_V2_AT_OK);
-    line("+QFOPEN: 8"); complete(ABOX_BOOT_V2_AT_OK);
-    ABoxBootV2App_Task(); assert(strstr(command, "QFREAD=8,128") != 0);
-    line("CONNECT 128"); assert(raw_wanted == sizeof(image)); raw(image, sizeof(image)); complete(ABOX_BOOT_V2_AT_OK);
+    line("CONNECT");
+    assert(raw_wanted == sizeof(image));
+    raw(image, sizeof(image));
+    complete(ABOX_BOOT_V2_AT_OK);
+    line("CONNECT");
+    ABoxBootV2App_Task();
+    assert(payload_count == 2U);
+    line("+QFWRITE: 128,128");
+    complete(ABOX_BOOT_V2_AT_OK);
+    complete(ABOX_BOOT_V2_AT_OK);
+    line("+QFLST: \"UFS:fw_slot1.bin\",128");
+    complete(ABOX_BOOT_V2_AT_OK);
+    line("+QFOPEN: 8");
     complete(ABOX_BOOT_V2_AT_OK);
     ABoxBootV2App_Task();
+    assert(strstr(command, "QFREAD=8,128") != 0);
+    line("CONNECT 128");
+    assert(raw_wanted == sizeof(image));
+    raw(image, sizeof(image));
+    complete(ABOX_BOOT_V2_AT_OK);
+    complete(ABOX_BOOT_V2_AT_OK);
+    ABoxBootV2App_Task();
+
     assert(ABoxBootV2App_TakeInstallReady());
     assert(!mqtt_paused);
     assert(ABoxBootV2_StateLoad(&state));
@@ -190,5 +359,15 @@ int main(void)
     assert(state.image_size == sizeof(image));
     assert(state.image_crc32 == request.crc32);
     assert(strcmp(state.image_version, "abox-v2-next") == 0);
+}
+
+int main(void)
+{
+    bind_platform();
+    prepare_flash();
+    test_probe_error_and_retry();
+    test_missing_ca_is_uploaded_and_verified();
+    test_ca_error_is_distinct();
+    test_candidate_download();
     return 0;
 }
