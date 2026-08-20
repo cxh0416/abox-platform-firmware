@@ -54,6 +54,22 @@ void ABox_PortFlashEnd(void)
     if (g_port_bound && g_port.flash_end) g_port.flash_end(g_port.context);
 }
 
+int ABox_PortFlashRead(uint32_t address, uint8_t *data, uint32_t length)
+{
+    if (!data || length == 0U) return 0;
+    if (g_port_bound && g_port.flash_read) return g_port.flash_read(g_port.context, address, data, length);
+#if defined(__arm__) || defined(__thumb__)
+    {
+        const uint8_t *source = (const uint8_t *)(uintptr_t)address;
+        uint32_t i;
+        for (i = 0U; i < length; ++i) data[i] = source[i];
+        return 1;
+    }
+#else
+    return 0;
+#endif
+}
+
 void ABox_PortLog(const char *fmt, ...)
 {
     char line[256];

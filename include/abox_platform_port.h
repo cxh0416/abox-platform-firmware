@@ -17,6 +17,7 @@ typedef void (*ABox_CriticalFn)(void *context);
 typedef void (*ABox_LogWriteFn)(void *context, const char *line);
 typedef int (*ABox_OtaIsReadingRawFn)(void *context);
 typedef void (*ABox_GpioWriteFn)(void *context, uint8_t level);
+typedef int (*ABox_FlashReadFn)(void *context, uint32_t address, uint8_t *data, uint32_t length);
 
 typedef struct {
     uint32_t app_start_addr;
@@ -39,6 +40,7 @@ typedef struct {
     const ABoxFlashLayout *flash_layout;
     ABox_GpioWriteFn ec_power_enable_write;
     ABox_GpioWriteFn ec_pwrkey_write;
+    ABox_FlashReadFn flash_read;
 } ABoxPlatformPort;
 
 /* The port is deliberately scheduler-neutral; FreeRTOS and bare-metal adapt it. */
@@ -53,6 +55,7 @@ int ABox_PortFlashBegin(void);
 int ABox_PortFlashWrite(uint32_t address, const uint8_t *data, uint32_t length);
 int ABox_PortFlashErasePage(uint32_t address);
 void ABox_PortFlashEnd(void);
+int ABox_PortFlashRead(uint32_t address, uint8_t *data, uint32_t length);
 void ABox_PortLog(const char *fmt, ...);
 int ABox_PortOtaIsReadingRaw(void);
 void ABox_PortEcPowerEnableWrite(uint8_t level);

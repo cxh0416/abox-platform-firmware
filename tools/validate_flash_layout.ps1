@@ -13,11 +13,25 @@ param(
     [uint32] $OtaInfoSize = 0x800
 )
 
-function Read-GnuFlash([string] $Path) {
-    $text = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
-    $match = [regex]::Match($text, 'FLASH\s*\([^)]*\)\s*:\s*ORIGIN\s*=\s*(0x[0-9A-Fa-f]+),\s*LENGTH\s*=\s*(0x[0-9A-Fa-f]+|[0-9]+K?)')
+function Read-GnuRegion([string] $Text, [string] $Name) {
+    $escaped = [regex]::Escape($Name)
+    $match = [regex]::Match($Text, "${escaped}\s*\([^)]*\)\s*:\s*ORIGIN\s*=\s*(0x[0-9A-Fa-f]+),\s*LENGTH\s*=\s*(0x[0-9A-Fa-f]+|[0-9]+K?)")
     if (-not $match.Success) { return $null }
     [pscustomobject]@{ Origin = [Convert]::ToUInt32($match.Groups[1].Value.Substring(2), 16); Length = Convert-Size $match.Groups[2].Value }
+}
+
+function Read-GnuFlash([string] $Path) {
+    $text = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
+    $flash = Read-GnuRegion $text 'FLASH'
+    if ($null -ne $flash) { return $flash }
+    $code = Read-GnuRegion $text 'FLASH_CODE'
+    $descriptor = Read-GnuRegion $text 'FLASH_DESC'
+    if ($null -eq $code -or $null -eq $descriptor) { return $null }
+    if ($code.Origin -ne $FlashBase -or $descriptor.Origin -ne ($FlashBase + 0x7F00) -or
+        $code.Length -ne 0x7F00 -or $descriptor.Length -ne 0x100) {
+        throw "Boot descriptor regions must be FLASH_CODE 0x08000000+0x7F00 and FLASH_DESC 0x08007F00+0x100"
+    }
+    [pscustomobject]@{ Origin = $code.Origin; Length = [uint32]($code.Length + $descriptor.Length) }
 }
 
 function Convert-Size([string] $value) {

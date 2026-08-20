@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(ABoxPlatform VERSION 0.1.1 LANGUAGES C)
+project(ABoxPlatform VERSION 0.2.0 LANGUAGES C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -49,6 +49,26 @@ add_library(abox_boot INTERFACE)
 add_library(abox::boot ALIAS abox_boot)
 target_link_libraries(abox_boot INTERFACE abox::core)
 
+add_library(abox_boot_v2_common STATIC
+    components/boot_v2/abox_boot_v2_state.c
+    components/boot_v2/abox_boot_v2_descriptor.c
+    components/boot_v2/abox_boot_v2_image.c
+    components/boot_v2/abox_boot_v2_fault.c
+)
+add_library(abox::boot_v2_common ALIAS abox_boot_v2_common)
+target_include_directories(abox_boot_v2_common PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(abox_boot_v2_common PUBLIC abox::core)
+
+add_library(abox_boot_v2_app STATIC components/boot_v2/abox_boot_v2_app.c)
+add_library(abox::boot_v2_app ALIAS abox_boot_v2_app)
+target_include_directories(abox_boot_v2_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(abox_boot_v2_app PUBLIC abox::boot_v2_common)
+
+add_library(abox_boot_v2_boot STATIC components/boot_v2/abox_boot_v2_boot.c)
+add_library(abox::boot_v2_boot ALIAS abox_boot_v2_boot)
+target_include_directories(abox_boot_v2_boot PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(abox_boot_v2_boot PUBLIC abox::boot_v2_common abox::core)
+
 add_library(abox_port_baremetal INTERFACE)
 add_library(abox::port_baremetal ALIAS abox_port_baremetal)
 target_link_libraries(abox_port_baremetal INTERFACE abox::core)
@@ -78,4 +98,12 @@ if(BUILD_TESTING AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     add_executable(abox_ec_power_test tests/ec_power_test.c)
     target_link_libraries(abox_ec_power_test PRIVATE abox::ec_power)
     add_test(NAME abox_ec_power_test COMMAND abox_ec_power_test)
+
+    add_executable(abox_boot_v2_test tests/boot_v2_test.c)
+    target_link_libraries(abox_boot_v2_test PRIVATE abox::boot_v2_boot)
+    add_test(NAME abox_boot_v2_test COMMAND abox_boot_v2_test)
+
+    add_executable(abox_boot_v2_app_test tests/boot_v2_app_test.c)
+    target_link_libraries(abox_boot_v2_app_test PRIVATE abox::boot_v2_app)
+    add_test(NAME abox_boot_v2_app_test COMMAND abox_boot_v2_app_test)
 endif()
