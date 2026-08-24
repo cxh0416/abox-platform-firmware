@@ -1,0 +1,17 @@
+﻿{
+    "manifest_version":  1,
+    "target":  "stm32f105_abox_boot",
+    "mcu":  "STM32F105RCT6",
+    "hardware_contract":  "abox_stm32f105_ec800_v1",
+    "boot_version":  "abox-boot-2.3.0",
+    "load_address":  "0x08000000",
+    "app_address":  "0x08008000",
+    "boot_state_pages":  [
+                             "0x0803E800",
+                             "0x0803F000"
+                         ],
+    "config_page":  "0x0803F800",
+    "size":  32768,
+    "crc32":  "F36320C9",
+    "sha256":  "981409ef107d5f5c56a1a80fce107c0292e2c1165668c0279ba6158f24a61c63"
+}
