@@ -1,90 +1,69 @@
-# A-Box Platform Contract
+# A-Box 公共平台合同
 
-This document describes the current `ABox_Platform v0.2.3` integration contract.
+本文描述 `ABox_Platform v0.2.3` 的当前集成边界。
 
-## Boundary
+## 1. 平台边界
 
-The platform owns scheduler-neutral interfaces and reusable handwritten firmware
-components. CubeMX `.ioc` files, generated HAL/CMSIS sources, product business
-protocols, linker scripts, EC800 ownership policy, and hardware adaptation remain
-in each product repository.
+平台由两层组成：
 
-The reusable component groups are:
+1. 与调度器无关的公共接口和可复用手写组件；
+2. 面向 `abox_stm32f105_ec800_v1` 硬件合同的完整公共 Boot 目标 `targets/stm32f105_abox_boot`。
 
-- `abox::core`, `abox::cjson`, `abox::ec_power`, `abox::ota`, and `abox::boot` for
-  existing integrations;
-- `abox::boot_v2_common` for CRC32, vector validation, fault mailbox, Boot State
-  V3, descriptor validation, and state names;
-- `abox::boot_v2_app` for CA/UFS setup, HTTPS Range download, image verification,
-  stable-slot provisioning, and `INSTALL_PENDING` submission;
-- `abox::boot_v2_boot` for UFS installation, interrupted-install recovery,
-  `TRIAL`, three-failure rollback, and rollback-report retention.
+公共组件包括：
 
-Existing `abox::ota`, `abox::boot`, `abox_platform_attach`, and
-`abox_platform_attach_boot` interfaces remain available for products that have
-not migrated. Boot V2 products opt in with `abox_platform_attach_boot_v2_app`
-and `abox_platform_attach_boot_v2`; migration must not change an unrelated
-product implicitly.
+- `abox::core`：产品配置校验和硬件回调端口；
+- `abox::cjson`：统一 JSON 库；
+- `abox::ec_power`：EC800 电源时序；
+- `abox::ota`、`abox::boot`：尚未迁移产品使用的旧接口；
+- `abox::boot_v2_common`：CRC32、向量校验、故障邮箱、Boot State V3、描述符校验和状态名称；
+- `abox::boot_v2_app`：CA/UFS 初始化、HTTPS Range 下载、镜像校验、稳定槽初始化和 `INSTALL_PENDING` 提交；
+- `abox::boot_v2_boot`：UFS 安装、中断恢复、`TRIAL`、三次失败回滚和回滚报告保持。
 
-## Compatibility
+完整公共 Boot 目标包含 CubeMX `.ioc`、HAL/CMSIS、启动文件、链接脚本、STM32F105/EC800 硬件适配、构建脚本、校验脚本和冻结二进制。它只适用于文档声明的统一硬件与地址合同。
 
-- Existing MQTT topics, JSON fields, CAN/RS485 frames, OTA addresses, and artifact
-  names are public contracts and must not change as part of platform extraction.
-- Product OTA/configuration records are decoded through product adapters. A
-  platform update must not erase or reinterpret an existing field layout.
-- A platform commit is build metadata; it is not added to an existing public
-  device payload unless that protocol is explicitly versioned.
-- `ABoxBootV2Record` is a persistent ABI: Version 3, 112 bytes, with the existing
-  numeric state values. Changes require an explicit disk-format migration.
-- The 256-byte Boot descriptor is a read-only ABI at `0x08007F00`. It uses magic
-  `0x32564241`, ABI 1, and CRC32 over all bytes before the final CRC field.
-- Required Boot V2 features are State V3, UFS A/B, App staging, and rollback
-  reporting (`0x0000000F`). A missing, invalid, or incomplete descriptor makes
-  the App OTA-ineligible.
+产品仓库继续拥有 App 的 CubeMX/HAL 工程、产品业务协议、MQTT Topic、CAN/RS485、执行器逻辑、产品配置页结构、App 侧 EC800/调度器适配、版本和发布包装。不同 MCU、Flash/RAM 容量、UART 或 EC800 电源引脚不得直接复用当前公共 Boot 二进制。
 
-## Scheduler ports
+## 2. 兼容原则
 
-`abox_platform_port.h` is independent of FreeRTOS. Bare-metal products provide
-direct callbacks; FreeRTOS products provide callbacks from their task/queue
-adapter. Shared code may not include FreeRTOS headers.
+- 既有 MQTT Topic、JSON 字段、CAN/RS485 帧、产品配置布局和 App 产物名不得因平台抽取而隐式改变。
+- 产品 OTA/配置记录必须通过产品适配层解释；平台更新不得擦除或重新解释现有字段。
+- 平台提交号属于构建元数据，不得未经协议版本升级加入既有公共设备报文。
+- `ABoxBootV2Record` 是持久化 ABI：版本 3、112 字节，并保持既有状态数值；修改时必须提供明确的数据迁移。
+- 256 字节 Boot 描述符固定在 `0x08007F00`，魔数为 `0x32564241`、ABI 为 1，末尾保存描述符 CRC32。
+- Boot V2 必须提供 State V3、UFS A/B、App 暂存和回滚报告四项能力，即特性掩码 `0x0000000F`。描述符缺失、无效或能力不完整时，App 必须判定设备不可 OTA。
+- `abox::ota` 和旧 Boot 接口只用于尚未迁移的 `Airport_vehicle`、`CageDumper`；平台升级不得让它们自动切换到 Boot V2。
 
-Boot V2 uses callback ports rather than product HAL symbols. The App port owns
-AT submission, raw receive, MQTT pause/resume, transfer buffering, time, and
-logging. The Boot port owns UFS installation, Flash/vector checks, reset reason,
-App jump, delay, and logging. Product adapters decide how those callbacks map to
-HAL, EC800, and scheduler services.
+## 3. 调度器与硬件端口
 
-## Boot V2 behavior
+`abox_platform_port.h` 不依赖 FreeRTOS。裸机产品直接提供回调，FreeRTOS 产品通过任务、队列或硬件适配层提供回调；公共组件不得包含 FreeRTOS 头文件。
 
-- The App downloads an immutable HTTPS revision in 1024-byte Range chunks and
-  requires HTTP `206` with the exact requested length.
-- The App validates URL, size, CRC32, and vector table before atomically writing
-  `INSTALL_PENDING`. Network download code is not linked into Boot.
-- A newly flashed App provisions the running immutable revision into the stable
-  UFS slot before reporting `otaReady=true`. Provisioning failure must not stop
-  local business, but it blocks platform OTA. The shared App component verifies
-  the existing CA file before reuse, repairs a missing or mismatched file, retries
-  transient probe/CA failures after 5, 15, and 60 seconds, and retries terminal
-  failures every five minutes. Probe failures report `1001`; CA file operations
-  report `1002`.
-- A failed automatic stable-slot download clears the one-shot attempt guard before
-  transport reprovisioning, so the five-minute retry can attempt the immutable
-  running revision again without requiring another MCU reset.
-- Boot installs only from UFS, records `INSTALLING` before destructive work,
-  enters `TRIAL` after verification, and restores the stable slot after three
-  qualifying trial failures.
-- `ROLLBACK` remains reportable until the platform receives a `get_info`
-  response and the App acknowledges that report. Version alone never proves an
-  OTA task complete.
+Boot V2 App 端口负责 AT 命令提交、原始数据接收、MQTT 暂停/恢复、传输缓冲区、时间和日志。Boot 端口负责 UFS 安装、Flash/向量检查、复位原因、App 跳转、延时和日志。产品适配层决定这些回调如何映射到 HAL、EC800 和调度器服务。
 
-## Release gate
+完整公共 Boot 已固化统一硬件适配，产品不得在自身仓库覆盖其引脚、UART 或链接布局。
 
-Every product release records the product commit, platform commit, compiler
-version, App/Boot sizes, Flash layout result, and SHA-256 values. Build success
-does not constitute hardware or OTA validation.
+## 4. Boot V2 行为
 
-Each product owns its build/package wrapper and artifact names. The shared
-`tools/validate_flash_layout.ps1` enforces the common address contract; product
-wrappers emit App, Boot, combined images where supported, and a manifest with
-addresses, sizes, CRC32, SHA-256, product commit, platform commit, and compiler
-identity under that product's `dist/` directory.
+- App 以 1024 字节 Range 分片下载不可变 HTTPS revision，每片必须返回 HTTP `206` 且长度准确。
+- App 在写入 `INSTALL_PENDING` 前校验 URL、长度、CRC32 和向量表；Boot 不链接网络下载代码。
+- 新烧录 App 必须先把当前不可变 revision 初始化为稳定 UFS 槽，再报告 `otaReady=true`。初始化失败不能阻塞本地业务，但必须阻止平台 OTA。
+- CA/UFS 初始化对瞬时错误按 5、15、60 秒重试，终止错误每五分钟重试；探测错误为 `1001`，CA 文件错误为 `1002`。
+- Boot 在破坏性操作前写入 `INSTALLING`，只从 UFS 安装，校验后进入 `TRIAL`；连续三次符合条件的试运行失败后恢复稳定槽。
+- `ROLLBACK` 必须保持到平台收到真实 `get_info` 响应并由 App 确认。仅看到目标版本运行或收到 MQTT 成功响应，不能判定 OTA 成功。
+
+## 5. Flash 与 RAM 合同
+
+统一 Flash 地址为：Boot `0x08000000..0x08007FFF`、App `0x08008000..0x0803E7FF`、Boot State A/B `0x0803E800` 和 `0x0803F000`、产品配置页 `0x0803F800`。维修 Full 包只能包含 Boot、描述符和 App，不得覆盖 Boot State 或产品配置页。
+
+使用复位保持故障邮箱的产品，Boot 与 App 必须把 `.noinit` 固定在同一 RAM 绝对地址。链接脚本必须断言 `.bss` 在邮箱前结束，并保证 OTA 工作区之上仍保留声明的最低栈空间。
+
+App-only 发布不得移动邮箱地址。邮箱前存在较大空闲区的产品可以把它声明为有界 newlib 堆，但 `_sbrk` 必须在链接脚本提供的明确堆上限停止，不能覆盖 `.noinit` 或 `.ota_work`。仍采用传统 BSS 后置堆布局的产品必须保留声明的最小堆、最小栈和产品运行时保护余量。
+
+当前公共 Boot 将 RAM 分为主数据区、20 字节故障邮箱、栈余量和最低 2 KiB 栈；链接报告中的主数据区占用不能被误读为整片 64 KiB RAM 的总占用。
+
+## 6. 发布门槛
+
+产品日常发布只构建 App，并逐字节复用公共平台冻结的 `ABox_Boot.bin` 生成维修 Full 包。只有公共 Boot ABI、状态机或统一硬件基线发生变化时，才允许在公共平台内重新构建 Boot，并同时更新版本、描述符、冻结二进制和清单。
+
+每次正式发布应记录产品提交、平台提交、编译器版本、App/Boot 大小、Flash 布局校验结果、CRC32 和 SHA-256。各产品继续拥有自己的产物名称和打包脚本。
+
+构建成功只证明源码和制品一致；它不证明设备已完成 Boot 跳转、真实 UFS OTA、断电恢复、试运行确认、回滚或业务硬件验收。

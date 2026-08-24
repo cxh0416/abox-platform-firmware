@@ -7,11 +7,12 @@ $ErrorActionPreference = 'Stop'
 $expectedMcu = 'STM32F105R(8-B-C)Tx'
 $expectedPackage = 'LQFP64'
 $products = @(
-    @{ Name = 'Airport_vehicle'; Uart5 = 115200; Can1 = 9; Can2 = 4; Boot = 'boot/STM32F105XX_FLASH.ld'; App = 'app/STM32F105XX_FLASH.ld' },
-    @{ Name = 'CageDumper'; Uart5 = 115200; Can1 = 4; Can2 = 4; Boot = 'boot/STM32F105XX_FLASH.ld'; App = 'app/STM32F105XX_FLASH.ld' },
-    @{ Name = 'LockCtrlBoard_cheweishi'; Uart5 = 115200; Can1 = 9; Can2 = 4; Boot = 'boot/STM32F105XX_FLASH.ld'; App = 'app/STM32F105XX_FLASH.ld' },
-    @{ Name = 'Meal_Delivery_Vehicle'; Uart5 = 115200; Can1 = 9; Can2 = 4; Boot = 'boot/STM32F105xx_FLASH.ld'; App = 'app/STM32F105XX_FLASH.ld' },
-    @{ Name = 'Sweeper_VCU'; Uart5 = 9600; Can1 = 4; Can2 = 4; Boot = 'boot/STM32F105XX_FLASH.ld'; App = 'app/STM32F105xx_FLASH.ld' }
+    @{ Name = 'Top_Flying_Wing'; Uart5 = 115200; Can1 = 9; Can2 = 4; Boot = 'platform/targets/stm32f105_abox_boot/STM32F105xx_FLASH.ld'; App = 'app/STM32F105xx_FLASH.ld'; ConfigRequired = $false; BootV2 = $true },
+    @{ Name = 'Airport_vehicle'; Uart5 = 115200; Can1 = 9; Can2 = 4; Boot = 'boot/STM32F105XX_FLASH.ld'; App = 'app/STM32F105XX_FLASH.ld'; BootV2 = $false },
+    @{ Name = 'CageDumper'; Uart5 = 115200; Can1 = 4; Can2 = 4; Boot = 'boot/STM32F105XX_FLASH.ld'; App = 'app/STM32F105XX_FLASH.ld'; BootV2 = $false },
+    @{ Name = 'LockCtrlBoard_cheweishi'; Uart5 = 115200; Can1 = 9; Can2 = 4; Boot = 'platform/targets/stm32f105_abox_boot/STM32F105xx_FLASH.ld'; App = 'app/STM32F105XX_FLASH.ld'; BootV2 = $true },
+    @{ Name = 'Meal_Delivery_Vehicle'; Uart5 = 115200; Can1 = 9; Can2 = 4; Boot = 'platform/targets/stm32f105_abox_boot/STM32F105xx_FLASH.ld'; App = 'app/STM32F105XX_FLASH.ld'; BootV2 = $true },
+    @{ Name = 'Sweeper_VCU'; Uart5 = 115200; Can1 = 4; Can2 = 4; Boot = 'platform/targets/stm32f105_abox_boot/STM32F105xx_FLASH.ld'; App = 'app/STM32F105xx_FLASH.ld'; BootV2 = $true }
 )
 
 function Assert-Contains([string] $Path, [string] $Pattern, [string] $Label) {
@@ -27,14 +28,25 @@ foreach ($product in $products) {
     Assert-Contains $ioc.FullName "^Mcu.Package=$([regex]::Escape($expectedPackage))$" "$($product.Name) package"
 
     $cfg = Join-Path $root 'platform_config/abox_product_config.h'
-    if (-not (Test-Path -LiteralPath $cfg)) { throw "Missing product config: $cfg" }
-    Assert-Contains $cfg 'ABOX_PRODUCT_CONFIG' "$($product.Name) platform config"
+    if (Test-Path -LiteralPath $cfg) {
+        Assert-Contains $cfg 'ABOX_PRODUCT_CONFIG' "$($product.Name) platform config"
+    } elseif ($product.ConfigRequired -ne $false) {
+        throw "Missing product config: $cfg"
+    }
 
     $uart = Join-Path $root 'app/Core/Src/usart.c'
     Assert-Contains $uart "huart5\.Init\.BaudRate\s*=\s*$($product.Uart5)" "$($product.Name) UART5 base baud"
     Assert-Contains $ioc.FullName "^CAN1\.Prescaler=$($product.Can1)$" "$($product.Name) CAN1 prescaler"
     Assert-Contains $ioc.FullName "^CAN2\.Prescaler=$($product.Can2)$" "$($product.Name) CAN2 prescaler"
 
-    & $flashScript -BootLinker (Join-Path $root $product.Boot) -AppLinker (Join-Path $root $product.App) | Out-Host
+    $bootLinker = Join-Path $root $product.Boot
+    $appLinker = Join-Path $root $product.App
+    if ($product.BootV2) {
+        & $flashScript -BootLinker $bootLinker -AppLinker $appLinker | Out-Host
+    } else {
+        Assert-Contains $bootLinker 'ORIGIN\s*=\s*0x0?8000000\s*,\s*LENGTH\s*=\s*(0x8000|32K)' "$($product.Name) legacy Boot region"
+        Assert-Contains $appLinker 'ORIGIN\s*=\s*0x0?8008000\s*,\s*LENGTH\s*=\s*(0x37800|222K)' "$($product.Name) legacy App region"
+        Write-Host "PASS $($product.Name) legacy Flash layout (no Boot State pages)"
+    }
     Write-Host "PASS $($product.Name) hardware/config matrix"
 }
