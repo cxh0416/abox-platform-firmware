@@ -28,6 +28,7 @@ static int payload_command(const char *command)
     return strncmp(command, "AT+QMTPUBEX=", 12U) == 0 ||
            strncmp(command, "AT+QISEND=", 10U) == 0 ||
            strncmp(command, "AT+QHTTPURL=", 12U) == 0 ||
+           strncmp(command, "AT+QHTTPPOST=", 13U) == 0 ||
            (strncmp(command, "AT+QFWRITE=", 11U) == 0 && command[11] != '?') ||
            strncmp(command, "AT+QFUPL=\"", 10U) == 0;
 }
@@ -37,6 +38,8 @@ static int waits_for_urc(const char *command)
     if (!command) return 0;
     if (strncmp(command, "AT+QHTTPGET", 11U) == 0 && strchr(command, '=') &&
         strstr(command, "=?") == 0)
+        return 1;
+    if (strncmp(command, "AT+QHTTPPOST=", 13U) == 0)
         return 1;
     if (strncmp(command, "AT+QHTTPREAD=", 13U) == 0 && command[13] != '?')
         return 1;
@@ -73,6 +76,11 @@ static int result_urc(const ABoxEc800At *at, const uint8_t *line,
     command = at->active.command;
     if (strncmp(command, "AT+QHTTPGET", 11U) == 0 &&
         sscanf((const char *)line, "+QHTTPGET: %lu", &a) == 1) {
+        *result = a == 0U ? ABOX_EC800_RESULT_OK : ABOX_EC800_RESULT_ERROR;
+        return 1;
+    }
+    if (strncmp(command, "AT+QHTTPPOST=", 13U) == 0 &&
+        sscanf((const char *)line, "+QHTTPPOST: %lu", &a) == 1) {
         *result = a == 0U ? ABOX_EC800_RESULT_OK : ABOX_EC800_RESULT_ERROR;
         return 1;
     }

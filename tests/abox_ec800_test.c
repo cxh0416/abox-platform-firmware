@@ -83,6 +83,33 @@ static void test_async_direct_command(void)
     assert(g_done_count == 1U && g_done_result == ABOX_EC800_RESULT_OK);
 }
 
+static void test_http_post_waits_for_payload_and_result_urc(void)
+{
+    ABoxEc800At at;
+    ABoxEc800AtPort port = {0, tick_ms, write_data, 0};
+    const uint8_t payload[] = "{\"uid\":\"0011\"}";
+    memset(&at, 0, sizeof(at));
+    memset(g_tx, 0, sizeof(g_tx));
+    g_done_count = 0U;
+    assert(ABoxEc800At_Init(&at, &port));
+    assert(ABoxEc800At_Submit(&at, "AT+QHTTPPOST=14,80,80",
+                              ABOX_EC800_OWNER_PRODUCT_BASE,
+                              ABOX_EC800_PRIORITY_HIGH, 1000U, done, 0));
+    ABoxEc800At_Task(&at);
+    assert(strstr(g_tx, "AT+QHTTPPOST=14,80,80") != 0);
+    ABoxEc800At_Feed(&at, (const uint8_t *)"CONNECT\r\n", 9U);
+    assert(ABoxEc800At_SendPayload(&at, ABOX_EC800_OWNER_PRODUCT_BASE,
+                                   payload, sizeof(payload) - 1U));
+    ABoxEc800At_Feed(&at, (const uint8_t *)"OK\r\n", 4U);
+    assert(g_done_count == 0U);
+    {
+        const char result[] = "+QHTTPPOST: 0,201,512\r\n";
+        ABoxEc800At_Feed(&at, (const uint8_t *)result,
+                         (uint16_t)(sizeof(result) - 1U));
+    }
+    assert(g_done_count == 1U && g_done_result == ABOX_EC800_RESULT_OK);
+}
+
 static void test_raw_split_and_dynamic_owner(void)
 {
     ABoxEc800At at;
@@ -184,6 +211,7 @@ static void test_circular_dma_wrap_and_overflow(void)
 int main(void)
 {
     test_async_direct_command();
+    test_http_post_waits_for_payload_and_result_urc();
     test_raw_split_and_dynamic_owner();
     test_owner_routing_and_raw_urc_glue();
     test_dma_half_full_and_wrap();
