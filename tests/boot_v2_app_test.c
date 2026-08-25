@@ -31,6 +31,8 @@ static uint8_t active;
 static uint8_t payload_allowed;
 static uint8_t mqtt_paused;
 static uint32_t payload_count;
+static uint8_t sent_payload[2048];
+static uint32_t sent_payload_length;
 static uint32_t raw_wanted;
 static uint32_t tick_now;
 
@@ -89,6 +91,9 @@ static int send_payload(void *context, const uint8_t *data, uint16_t length)
     if (!payload_allowed) return 0;
     payload_allowed = 0U;
     ++payload_count;
+    assert(sent_payload_length + length <= sizeof(sent_payload));
+    memcpy(sent_payload + sent_payload_length, data, length);
+    sent_payload_length += length;
     return 1;
 }
 static int begin_raw(void *context, uint32_t length)
@@ -153,6 +158,7 @@ static void reset_transport(void)
     payload_allowed = 0U;
     mqtt_paused = 0U;
     payload_count = 0U;
+    sent_payload_length = 0U;
     raw_wanted = 0U;
     tick_now = 1000U;
 }
@@ -353,6 +359,73 @@ static void test_candidate_download(void)
     assert(strcmp(state.image_version, "abox-v2-next") == 0);
 }
 
+static void test_local_stable_seed_does_not_use_http(void)
+{
+    ABoxBootV2Record state;
+    ABoxBootV2Descriptor descriptor;
+    uint8_t image[128];
+
+    memset(flash_mem, 0xFF, sizeof(flash_mem));
+    memset(image, 0xA5, sizeof(image));
+    image[0] = 0x00U; image[1] = 0x40U; image[2] = 0x00U; image[3] = 0x20U;
+    image[4] = 0x01U; image[5] = 0x81U; image[6] = 0x00U; image[7] = 0x08U;
+    memcpy(flash_mem + 0x8000U, image, sizeof(image));
+    memset(&descriptor, 0, sizeof(descriptor));
+    descriptor.magic = ABOX_BOOT_V2_DESCRIPTOR_MAGIC;
+    descriptor.abi_version = ABOX_BOOT_V2_DESCRIPTOR_ABI;
+    descriptor.length = sizeof(descriptor);
+    descriptor.feature_flags = ABOX_BOOT_V2_REQUIRED_FEATURES;
+    descriptor.crc32 = ABoxBootV2_Crc32(
+        &descriptor, (uint32_t)offsetof(ABoxBootV2Descriptor, crc32));
+    memcpy(flash_mem + ABOX_BOOT_V2_DESCRIPTOR_ADDR - BASE,
+           &descriptor, sizeof(descriptor));
+    reset_transport();
+    init_app();
+    complete_probes();
+    finish_existing_ca();
+    sent_payload_length = 0U;
+    payload_count = 0U;
+
+    ABoxBootV2App_Task();
+    assert(strcmp(ABoxBootV2App_Phase(), "SEEDING_LOCAL") == 0);
+    assert(strcmp(ABoxBootV2App_StableSeedSource(), "local_flash") == 0);
+    assert(strstr(command, "QMTDISC") != 0);
+    complete(ABOX_BOOT_V2_AT_OK);
+    complete(ABOX_BOOT_V2_AT_OK);
+    assert(strstr(command, "QFDEL=\"fw_slot0.bin\"") != 0);
+    assert(strstr(command, "QHTTP") == 0);
+    complete(ABOX_BOOT_V2_AT_ERROR);
+    line("+QFOPEN: 7");
+    complete(ABOX_BOOT_V2_AT_OK);
+    assert(strstr(command, "QFWRITE=7,128,10") != 0);
+    line("CONNECT");
+    ABoxBootV2App_Task();
+    assert(sent_payload_length == sizeof(image));
+    assert(memcmp(sent_payload, image, sizeof(image)) == 0);
+    line("+QFWRITE: 128,128");
+    complete(ABOX_BOOT_V2_AT_OK);
+    complete(ABOX_BOOT_V2_AT_OK);
+    line("+QFLST: \"UFS:fw_slot0.bin\",128");
+    complete(ABOX_BOOT_V2_AT_OK);
+    line("+QFOPEN: 8");
+    complete(ABOX_BOOT_V2_AT_OK);
+    ABoxBootV2App_Task();
+    line("CONNECT 128");
+    raw(image, sizeof(image));
+    complete(ABOX_BOOT_V2_AT_OK);
+    complete(ABOX_BOOT_V2_AT_OK);
+    ABoxBootV2App_Task();
+
+    assert(!mqtt_paused);
+    assert(ABoxBootV2App_IsReady());
+    assert(ABoxBootV2_StateLoad(&state));
+    assert(state.state == ABOX_BOOT_V2_CONFIRMED);
+    assert(state.stable_slot == 0U);
+    assert(state.stable_image_size == sizeof(image));
+    assert(state.stable_image_crc32 == ABoxBootV2_Crc32(image, sizeof(image)));
+    assert(strcmp(state.stable_image_version, "abox-v2-current") == 0);
+}
+
 static void test_download_failure_waits_before_retry(void)
 {
     ABoxBootV2AppRequest request;
@@ -392,6 +465,8 @@ int main(void)
     test_probe_error_and_retry();
     test_missing_ca_is_uploaded_and_verified();
     test_ca_error_is_distinct();
+    test_local_stable_seed_does_not_use_http();
+    prepare_flash();
     test_candidate_download();
     test_download_failure_waits_before_retry();
     return 0;

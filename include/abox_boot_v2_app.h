@@ -22,6 +22,7 @@ extern "C" {
 #define ABOX_BOOT_V2_APP_ERROR_VECTOR 1303U
 #define ABOX_BOOT_V2_APP_ERROR_STATE 1401U
 #define ABOX_BOOT_V2_APP_ERROR_URL 1402U
+#define ABOX_BOOT_V2_STABLE_SEED_SOURCE "local_flash"
 
 typedef enum { ABOX_BOOT_V2_AT_OK=0, ABOX_BOOT_V2_AT_ERROR, ABOX_BOOT_V2_AT_TIMEOUT, ABOX_BOOT_V2_AT_SEND_OK, ABOX_BOOT_V2_AT_SEND_FAIL } ABoxBootV2AtResult;
 typedef enum { ABOX_BOOT_V2_AT_LINE=0, ABOX_BOOT_V2_AT_RAW } ABoxBootV2AtEvent;
@@ -78,6 +79,7 @@ uint32_t ABoxBootV2App_LastError(void);
 int ABoxBootV2App_TakeInstallReady(void);
 int ABoxBootV2App_TakeFailure(uint32_t *error);
 const ABoxHttpsUfsMetrics *ABoxBootV2App_DownloadMetrics(void);
+const char *ABoxBootV2App_StableSeedSource(void);
 
 #ifdef __cplusplus
 }

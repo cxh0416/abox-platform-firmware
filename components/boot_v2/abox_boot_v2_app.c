@@ -97,6 +97,8 @@ typedef struct {
 /* Product linker scripts place this reset-scratch workspace after the fixed
  * fault mailbox so the 1 KiB transfer buffer does not consume normal BSS. */
 static Context g __attribute__((section(".ota_work")));
+const char g_abox_boot_v2_stable_seed_source_marker[]
+    __attribute__((used)) = "ABOX_STABLE_SEED_SOURCE=" ABOX_BOOT_V2_STABLE_SEED_SOURCE;
 
 static const char *const probes[] = {
     "AT+QFLDS=\"UFS\"",
@@ -410,6 +412,58 @@ static void begin_download(void)
     (void)submit_command("AT+QMTDISC=0", 10000U);
 }
 
+static int running_image_crc(uint32_t *result)
+{
+    uint32_t offset = 0U;
+    uint32_t crc = 0xFFFFFFFFU;
+    if (!result || !g.port.transfer_buffer ||
+        g.port.transfer_buffer_size < ABOX_BOOT_V2_APP_RAW_CHUNK)
+        return 0;
+    while (offset < g.cfg.app_size) {
+        uint32_t length = g.cfg.app_size - offset;
+        if (length > ABOX_BOOT_V2_APP_RAW_CHUNK)
+            length = ABOX_BOOT_V2_APP_RAW_CHUNK;
+        if (!ABox_PortFlashRead(g.cfg.app_start_addr + offset,
+                                g.port.transfer_buffer, length))
+            return 0;
+        crc = crc_update(crc, g.port.transfer_buffer, (uint16_t)length);
+        offset += length;
+    }
+    *result = crc ^ 0xFFFFFFFFU;
+    return 1;
+}
+
+static int begin_local_seed(void)
+{
+    if (!g.provisioned || g.busy || !g.cfg.running_version ||
+        strlen(g.cfg.running_version) == 0U ||
+        strlen(g.cfg.running_version) >= ABOX_BOOT_V2_APP_VERSION_SIZE ||
+        g.cfg.app_size == 0U || g.cfg.app_size > g.cfg.app_max_size) {
+        g.last_error = ABOX_BOOT_V2_APP_ERROR_STATE;
+        return 0;
+    }
+    g.seeding = 1U;
+    g.slot = 0U;
+    g.expected_size = g.cfg.app_size;
+    if (!running_image_crc(&g.expected_crc)) {
+        g.last_error = ABOX_BOOT_V2_APP_ERROR_STATE;
+        return 0;
+    }
+    g.downloaded = 0U;
+    g.read_size = 0U;
+    g.crc = 0xFFFFFFFFU;
+    g.vector_len = 0U;
+    g.file_seen = 0U;
+    g.file_size = 0U;
+    g.handle_valid = 0U;
+    g.failure_pending = 0U;
+    g.busy = 1U;
+    g.last_error = 0U;
+    (void)snprintf(g.version, sizeof(g.version), "%s", g.cfg.running_version);
+    begin_download();
+    return 1;
+}
+
 static int begin_request(const ABoxBootV2AppRequest *request, uint8_t seeding)
 {
     ABoxBootV2Record state;
@@ -565,7 +619,14 @@ static void command_succeeded(void)
         (void)submit_command("AT+QMTCLOSE=0", 10000U);
         break;
     case ST_MQTT_CLOSE:
-        start_common_downloader();
+        if (g.seeding) {
+            g.state = ST_FILE_DELETE;
+            (void)snprintf(command, sizeof(command), "AT+QFDEL=\"%s\"",
+                           slot_name(g.slot));
+            (void)submit_command(command, 5000U);
+        } else {
+            start_common_downloader();
+        }
         break;
     case ST_HTTP_STOP:
         g.state = ST_PDP_DEACT;
@@ -610,7 +671,15 @@ static void command_succeeded(void)
     case ST_FILE_OPEN:
         if (!g.handle_valid)
             download_fail(ABOX_BOOT_V2_APP_ERROR_UFS);
-        else
+        else if (g.seeding) {
+            g.chunk_size = g.expected_size - g.downloaded;
+            if (g.chunk_size > ABOX_BOOT_V2_APP_RAW_CHUNK)
+                g.chunk_size = ABOX_BOOT_V2_APP_RAW_CHUNK;
+            g.state = ST_FILE_WRITE;
+            (void)snprintf(command, sizeof(command), "AT+QFWRITE=%lu,%lu,10",
+                           (unsigned long)g.handle, (unsigned long)g.chunk_size);
+            (void)submit_command(command, 15000U);
+        } else
             g.state = ST_RANGE_GET;
         break;
     case ST_RANGE_GET:
@@ -643,7 +712,18 @@ static void command_succeeded(void)
                                (unsigned long)g.handle);
                 (void)submit_command(command, 5000U);
             } else {
-                g.state = ST_RANGE_GET;
+                if (g.seeding) {
+                    g.chunk_size = g.expected_size - g.downloaded;
+                    if (g.chunk_size > ABOX_BOOT_V2_APP_RAW_CHUNK)
+                        g.chunk_size = ABOX_BOOT_V2_APP_RAW_CHUNK;
+                    (void)snprintf(command, sizeof(command),
+                                   "AT+QFWRITE=%lu,%lu,10",
+                                   (unsigned long)g.handle,
+                                   (unsigned long)g.chunk_size);
+                    (void)submit_command(command, 15000U);
+                } else {
+                    g.state = ST_RANGE_GET;
+                }
             }
         }
         break;
@@ -902,13 +982,13 @@ int ABoxBootV2App_Start(const ABoxBootV2AppRequest *request)
 static int stable_slot_needs_seed(void)
 {
     ABoxBootV2Record state;
+    uint32_t running_crc;
     if (!ABoxBootV2_StateLoad(&state)) return 1;
     if (state.state != ABOX_BOOT_V2_CONFIRMED && state.state != ABOX_BOOT_V2_NORMAL)
         return 0;
+    if (!running_image_crc(&running_crc)) return 1;
     return state.stable_image_size != g.cfg.app_size ||
-           state.stable_image_crc32 !=
-               ABoxBootV2_Crc32((const void *)(uintptr_t)g.cfg.app_start_addr,
-                                 g.cfg.app_size) ||
+           state.stable_image_crc32 != running_crc ||
            strncmp(state.stable_image_version, g.cfg.running_version,
                    sizeof(state.stable_image_version)) != 0;
 }
@@ -972,17 +1052,8 @@ void ABoxBootV2App_Task(void)
     }
 
     if (g.provisioned && !g.busy && !g.seed_attempted && stable_slot_needs_seed()) {
-        ABoxBootV2AppRequest request;
-        memset(&request, 0, sizeof(request));
         g.seed_attempted = 1U;
-        (void)snprintf(request.url, sizeof(request.url), "%s/fw-revisions/%s/%s/%s",
-                       g.cfg.ota_origin, g.cfg.revision_product, g.cfg.running_version,
-                       g.cfg.artifact_name);
-        (void)snprintf(request.version, sizeof(request.version), "%s", g.cfg.running_version);
-        request.size = g.cfg.app_size;
-        request.crc32 = ABoxBootV2_Crc32((const void *)(uintptr_t)g.cfg.app_start_addr,
-                                         g.cfg.app_size);
-        if (!begin_request(&request, 1U)) {
+        if (!begin_local_seed()) {
             g.seed_attempted = 0U;
             download_fail(ABOX_BOOT_V2_APP_ERROR_STATE);
         }
@@ -1001,8 +1072,15 @@ void ABoxBootV2App_Task(void)
             return;
         }
         if (g.state == ST_FILE_WRITE) {
+            const uint8_t *payload = g.port.transfer_buffer;
+            if (g.seeding &&
+                !ABox_PortFlashRead(g.cfg.app_start_addr + g.downloaded,
+                                    g.port.transfer_buffer, g.chunk_size)) {
+                download_fail(ABOX_BOOT_V2_APP_ERROR_STATE);
+                return;
+            }
             g.payload_sent = (uint8_t)g.port.send_payload(
-                g.port.context, g.port.transfer_buffer, (uint16_t)g.chunk_size);
+                g.port.context, payload, (uint16_t)g.chunk_size);
             return;
         }
     }
@@ -1124,6 +1202,7 @@ const char *ABoxBootV2App_TargetVersion(void)
 
 const char *ABoxBootV2App_Phase(void)
 {
+    if (g.busy && g.seeding) return "SEEDING_LOCAL";
     if (g.state == ST_WAIT) return "WAIT_MODEM";
     if (g.state == ST_RETRY) return "RETRY_WAIT";
     if (provision_state(g.state)) return "PROVISIONING";
@@ -1137,6 +1216,11 @@ const char *ABoxBootV2App_Phase(void)
 const ABoxHttpsUfsMetrics *ABoxBootV2App_DownloadMetrics(void)
 {
     return ABoxHttpsUfs_Metrics(&g.downloader);
+}
+
+const char *ABoxBootV2App_StableSeedSource(void)
+{
+    return ABOX_BOOT_V2_STABLE_SEED_SOURCE;
 }
 
 int ABoxBootV2App_TakeInstallReady(void)
