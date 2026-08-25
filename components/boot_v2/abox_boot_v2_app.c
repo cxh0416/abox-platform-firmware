@@ -1220,7 +1220,7 @@ const ABoxHttpsUfsMetrics *ABoxBootV2App_DownloadMetrics(void)
 
 const char *ABoxBootV2App_StableSeedSource(void)
 {
-    return ABOX_BOOT_V2_STABLE_SEED_SOURCE;
+    return g_abox_boot_v2_stable_seed_source_marker + sizeof("ABOX_STABLE_SEED_SOURCE=") - 1U;
 }
 
 int ABoxBootV2App_TakeInstallReady(void)
