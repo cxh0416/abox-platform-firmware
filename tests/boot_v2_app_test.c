@@ -1,11 +1,17 @@
 #include "abox_boot_v2_app.h"
 #include "abox_platform_port.h"
 
-#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+#define CHECK(condition) do { if (!(condition)) { \
+    fprintf(stderr, "check failed: %s (%s:%d)\n", #condition, __FILE__, __LINE__); \
+    exit(1); \
+} } while (0)
+#define assert(condition) CHECK(condition)
 
 #define BASE 0x08000000U
 #define STATE_A 0x0803E800U
@@ -303,58 +309,41 @@ static void test_candidate_download(void)
 
     complete(ABOX_BOOT_V2_AT_OK); /* QMTDISC */
     complete(ABOX_BOOT_V2_AT_OK); /* QMTCLOSE */
-    complete(ABOX_BOOT_V2_AT_ERROR); /* QHTTPSTOP when already stopped */
-    complete(ABOX_BOOT_V2_AT_OK); /* QIDEACT */
-    complete(ABOX_BOOT_V2_AT_OK); /* QIACT */
-    complete(ABOX_BOOT_V2_AT_OK); /* sslversion */
+    {
+        uint32_t guard = 100U;
+        while (!ABoxBootV2App_TakeInstallReady() && guard--) {
+            char current[sizeof(command)];
+            ABoxBootV2App_Task();
+            if (!pending) {
+                assert(ABoxBootV2App_TakeInstallReady());
+                break;
+            }
+            assert(pending);
+            snprintf(current, sizeof(current), "%s", command);
+            if (strstr(current, "QHTTPURL") != 0) {
+                line("CONNECT");
+                ABoxBootV2App_Task();
+            } else if (strcmp(current, "AT+QHTTPGET=80") == 0) {
+                line("+QHTTPGET: 0,200,128");
+            } else if (strstr(current, "QFLST") != 0) {
+                line("+QFLST: \"UFS:fw_slot1.bin\",128");
+            } else if (strstr(current, "QFOPEN=\"fw_slot1.bin\",2") != 0) {
+                line("+QFOPEN: 8");
+            } else if (strstr(current, "QFREAD=8,128") != 0) {
+                line("CONNECT 128");
+                assert(raw_wanted == sizeof(image));
+                raw(image, sizeof(image));
+            }
+            if (strcmp(current, "AT+QHTTPSTOP") == 0 ||
+                strcmp(current, "AT+QIDEACT=1") == 0 ||
+                strstr(current, "QFDEL") != 0)
+                complete(ABOX_BOOT_V2_AT_ERROR);
+            else
+                complete(ABOX_BOOT_V2_AT_OK);
+        }
+        assert(guard != 0U);
+    }
 
-    ABoxBootV2App_Task(); complete(ABOX_BOOT_V2_AT_OK); /* seclevel */
-    ABoxBootV2App_Task(); complete(ABOX_BOOT_V2_AT_OK); /* sni */
-    ABoxBootV2App_Task(); complete(ABOX_BOOT_V2_AT_OK); /* CA */
-    ABoxBootV2App_Task(); complete(ABOX_BOOT_V2_AT_OK); /* HTTP context */
-    ABoxBootV2App_Task(); complete(ABOX_BOOT_V2_AT_OK); /* HTTP TLS */
-
-    ABoxBootV2App_Task();
-    assert(strstr(command, "QHTTPURL") != 0);
-    line("CONNECT");
-    ABoxBootV2App_Task();
-    assert(payload_count == 1U);
-    complete(ABOX_BOOT_V2_AT_OK);
-    complete(ABOX_BOOT_V2_AT_ERROR); /* destination does not exist */
-    line("+QFOPEN: 7");
-    complete(ABOX_BOOT_V2_AT_OK);
-
-    ABoxBootV2App_Task();
-    assert(strstr(command, "QHTTPGETEX=80,0,128") != 0);
-    line("+QHTTPGET: 0,206,128");
-    complete(ABOX_BOOT_V2_AT_OK);
-    line("CONNECT");
-    assert(raw_wanted == sizeof(image));
-    raw(image, sizeof(image) / 2U);
-    ABoxBootV2App_Task();
-    assert(pending);
-    raw(image + sizeof(image) / 2U, sizeof(image) / 2U);
-    complete(ABOX_BOOT_V2_AT_OK);
-    line("CONNECT");
-    ABoxBootV2App_Task();
-    assert(payload_count == 2U);
-    line("+QFWRITE: 128,128");
-    complete(ABOX_BOOT_V2_AT_OK);
-    complete(ABOX_BOOT_V2_AT_OK);
-    line("+QFLST: \"UFS:fw_slot1.bin\",128");
-    complete(ABOX_BOOT_V2_AT_OK);
-    line("+QFOPEN: 8");
-    complete(ABOX_BOOT_V2_AT_OK);
-    ABoxBootV2App_Task();
-    assert(strstr(command, "QFREAD=8,128") != 0);
-    line("CONNECT 128");
-    assert(raw_wanted == sizeof(image));
-    raw(image, sizeof(image));
-    complete(ABOX_BOOT_V2_AT_OK);
-    complete(ABOX_BOOT_V2_AT_OK);
-    ABoxBootV2App_Task();
-
-    assert(ABoxBootV2App_TakeInstallReady());
     assert(!mqtt_paused);
     assert(ABoxBootV2_StateLoad(&state));
     assert(state.state == ABOX_BOOT_V2_INSTALL_PENDING);

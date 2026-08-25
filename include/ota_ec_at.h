@@ -1,6 +1,13 @@
 #ifndef ABOX_OTA_EC_AT_H
 #define ABOX_OTA_EC_AT_H
 
+/*
+ * LEGACY: retained only for products that have not migrated to Boot V2.
+ * Do not add new commands here; use abox_ec800_at.h and
+ * abox_https_ufs_downloader.h for new integrations.
+ */
+#define ABOX_OTA_EC_AT_LEGACY 1
+
 #include <stdint.h>
 
 #ifdef __cplusplus

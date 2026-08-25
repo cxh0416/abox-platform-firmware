@@ -38,6 +38,20 @@ add_library(abox::ota ALIAS abox_ota)
 target_include_directories(abox_ota PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(abox_ota PUBLIC abox::core)
 
+add_library(abox_ec800 STATIC
+    components/ec800/abox_ec800_at.c
+    components/ec800/abox_ec800_at_legacy.c
+    components/ec800/abox_ec800_rx.c
+)
+add_library(abox::ec800 ALIAS abox_ec800)
+target_include_directories(abox_ec800 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+add_library(abox_https_ufs_downloader STATIC
+    components/ota/abox_https_ufs_downloader.c
+)
+add_library(abox::https_ufs_downloader ALIAS abox_https_ufs_downloader)
+target_include_directories(abox_https_ufs_downloader PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
 add_library(abox_ec_power STATIC
     components/ec_power/ec_power.c
 )
@@ -62,7 +76,7 @@ target_link_libraries(abox_boot_v2_common PUBLIC abox::core)
 add_library(abox_boot_v2_app STATIC components/boot_v2/abox_boot_v2_app.c)
 add_library(abox::boot_v2_app ALIAS abox_boot_v2_app)
 target_include_directories(abox_boot_v2_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(abox_boot_v2_app PUBLIC abox::boot_v2_common)
+target_link_libraries(abox_boot_v2_app PUBLIC abox::boot_v2_common abox::https_ufs_downloader)
 
 add_library(abox_boot_v2_boot STATIC components/boot_v2/abox_boot_v2_boot.c)
 add_library(abox::boot_v2_boot ALIAS abox_boot_v2_boot)
@@ -94,6 +108,14 @@ if(BUILD_TESTING AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     add_executable(abox_ota_ec_at_test tests/ota_ec_at_test.c)
     target_link_libraries(abox_ota_ec_at_test PRIVATE abox::ota)
     add_test(NAME abox_ota_ec_at_test COMMAND abox_ota_ec_at_test)
+
+    add_executable(abox_ec800_test tests/abox_ec800_test.c)
+    target_link_libraries(abox_ec800_test PRIVATE abox::ec800)
+    add_test(NAME abox_ec800_test COMMAND abox_ec800_test)
+
+    add_executable(abox_https_ufs_downloader_test tests/abox_https_ufs_downloader_test.c)
+    target_link_libraries(abox_https_ufs_downloader_test PRIVATE abox::https_ufs_downloader)
+    add_test(NAME abox_https_ufs_downloader_test COMMAND abox_https_ufs_downloader_test)
 
     add_executable(abox_ec_power_test tests/ec_power_test.c)
     target_link_libraries(abox_ec_power_test PRIVATE abox::ec_power)

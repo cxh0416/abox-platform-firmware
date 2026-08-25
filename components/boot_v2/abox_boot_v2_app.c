@@ -22,6 +22,7 @@ typedef enum {
     ST_IDLE,
     ST_MQTT_DISC,
     ST_MQTT_CLOSE,
+    ST_DOWNLOADER,
     ST_HTTP_STOP,
     ST_PDP_DEACT,
     ST_PDP_ACT,
@@ -87,6 +88,10 @@ typedef struct {
     uint32_t retry_due;
     char url[ABOX_BOOT_V2_APP_URL_SIZE];
     char version[ABOX_BOOT_V2_APP_VERSION_SIZE];
+    ABoxHttpsUfsDownloader downloader;
+    ABoxHttpsUfsDoneFn downloader_done;
+    void *downloader_done_user;
+    uint8_t direct_supported;
 } Context;
 
 /* Product linker scripts place this reset-scratch workspace after the fixed
@@ -180,6 +185,7 @@ static const char *download_stage(void)
     switch (g.state) {
     case ST_MQTT_DISC: return "MQTT_DISC";
     case ST_MQTT_CLOSE: return "MQTT_CLOSE";
+    case ST_DOWNLOADER: return ABoxHttpsUfs_Phase(&g.downloader);
     case ST_HTTP_STOP: return "HTTP_STOP";
     case ST_PDP_DEACT: return "PDP_DEACT";
     case ST_PDP_ACT: return "PDP_ACT";
@@ -203,6 +209,93 @@ static const char *download_stage(void)
     case ST_VERIFY: return "VERIFY";
     default: return "UNKNOWN";
     }
+}
+
+static void downloader_bridge_done(ABoxBootV2AtResult result, void *user)
+{
+    ABoxHttpsUfsDoneFn done = g.downloader_done;
+    void *done_user = g.downloader_done_user;
+    (void)user;
+    g.downloader_done = 0;
+    g.downloader_done_user = 0;
+    if (done) done((ABoxHttpsUfsAtResult)result, done_user);
+}
+
+static uint32_t downloader_tick(void *context)
+{
+    (void)context;
+    return now();
+}
+
+static int downloader_submit(void *context, const char *command,
+                             uint32_t timeout_ms, ABoxHttpsUfsDoneFn done,
+                             void *user)
+{
+    (void)context;
+    if (g.downloader_done || !g.port.submit) return 0;
+    g.downloader_done = done;
+    g.downloader_done_user = user;
+    if (!g.port.submit(g.port.context, command, timeout_ms,
+                       downloader_bridge_done, 0)) {
+        g.downloader_done = 0;
+        g.downloader_done_user = 0;
+        return 0;
+    }
+    return 1;
+}
+
+static int downloader_send(void *context, const uint8_t *data, uint16_t length)
+{
+    (void)context;
+    return g.port.send_payload &&
+           g.port.send_payload(g.port.context, data, length);
+}
+
+static int downloader_raw(void *context, uint32_t length)
+{
+    (void)context;
+    return g.port.begin_raw_read &&
+           g.port.begin_raw_read(g.port.context, length);
+}
+
+static int downloader_pending(void *context)
+{
+    (void)context;
+    return g.port.has_pending && g.port.has_pending(g.port.context);
+}
+
+static int downloader_active(void *context)
+{
+    (void)context;
+    return g.port.is_active && g.port.is_active(g.port.context);
+}
+
+static void downloader_cancel(void *context)
+{
+    (void)context;
+    g.downloader_done = 0;
+    g.downloader_done_user = 0;
+    if (g.port.cancel) g.port.cancel(g.port.context);
+}
+
+static void downloader_log(void *context, uint8_t level, const char *message)
+{
+    (void)context;
+    log_message(level, message);
+}
+
+static uint32_t downloader_overflow(void *context)
+{
+    (void)context;
+    return g.port.rx_overflow_count
+               ? g.port.rx_overflow_count(g.port.context)
+               : 0U;
+}
+
+static int downloader_vector(void *context, const uint8_t vector[8])
+{
+    (void)context;
+    return ABoxBootV2_ImageVectorValid(vector);
 }
 
 static int ufs_name_matches(const char *reported, const char *expected)
@@ -376,6 +469,20 @@ static void provision_ready(void)
     log_message(1U, "Boot V2 App UFS/HTTP/TLS/CA ready");
 }
 
+static void start_common_downloader(void)
+{
+    ABoxHttpsUfsRequest request;
+    memset(&request, 0, sizeof(request));
+    request.url = g.url;
+    request.file = slot_name(g.slot);
+    request.size = g.expected_size;
+    request.crc32 = g.expected_crc;
+    ABoxHttpsUfs_SetDirectSupported(&g.downloader, g.direct_supported);
+    g.state = ST_DOWNLOADER;
+    if (!ABoxHttpsUfs_Start(&g.downloader, &request))
+        download_fail(ABOX_BOOT_V2_APP_ERROR_UFS);
+}
+
 static void command_succeeded(void)
 {
     char command[128];
@@ -458,8 +565,7 @@ static void command_succeeded(void)
         (void)submit_command("AT+QMTCLOSE=0", 10000U);
         break;
     case ST_MQTT_CLOSE:
-        g.state = ST_HTTP_STOP;
-        (void)submit_command("AT+QHTTPSTOP", 10000U);
+        start_common_downloader();
         break;
     case ST_HTTP_STOP:
         g.state = ST_PDP_DEACT;
@@ -590,6 +696,14 @@ static void command_done(ABoxBootV2AtResult result, void *user)
     }
 
     if (g.state == ST_PROBE) {
+        if (g.probe_index < (uint8_t)(sizeof(probes) / sizeof(probes[0])) &&
+            strcmp(probes[g.probe_index], "AT+QHTTPREADFILE=?") == 0) {
+            g.direct_supported = 0U;
+            if (++g.probe_index < (uint8_t)(sizeof(probes) / sizeof(probes[0]))) {
+                (void)submit_command(probes[g.probe_index], 5000U);
+                return;
+            }
+        }
         provision_fail(ABOX_BOOT_V2_APP_ERROR_UNSUPPORTED);
         return;
     }
@@ -628,6 +742,12 @@ static void event_received(ABoxBootV2AtEvent event, const uint8_t *data,
 {
     char line[96];
     (void)user;
+
+    if (g.state == ST_DOWNLOADER) {
+        ABoxHttpsUfs_OnEvent(&g.downloader, (ABoxHttpsUfsAtEvent)event,
+                             data, length);
+        return;
+    }
 
     if (event == ABOX_BOOT_V2_AT_RAW) {
         if (g.state == ST_CA_READ) {
@@ -731,6 +851,8 @@ static void event_received(ABoxBootV2AtEvent event, const uint8_t *data,
 int ABoxBootV2App_Init(const ABoxBootV2AppPort *port,
                        const ABoxBootV2AppConfig *config)
 {
+    ABoxHttpsUfsPort downloader_port;
+    ABoxHttpsUfsConfig downloader_config;
     if (!port || !config || !port->submit || !port->register_events ||
         !port->transfer_buffer ||
         port->transfer_buffer_size < ABOX_BOOT_V2_APP_RAW_CHUNK)
@@ -739,8 +861,28 @@ int ABoxBootV2App_Init(const ABoxBootV2AppPort *port,
     memset(&g, 0, sizeof(g));
     g.port = *port;
     g.cfg = *config;
+    g.direct_supported = 1U;
     g.bound = 1U;
     g.state = ST_WAIT;
+    memset(&downloader_port, 0, sizeof(downloader_port));
+    downloader_port.tick_ms = downloader_tick;
+    downloader_port.submit = downloader_submit;
+    downloader_port.send_payload = downloader_send;
+    downloader_port.begin_raw = downloader_raw;
+    downloader_port.has_pending = downloader_pending;
+    downloader_port.is_active = downloader_active;
+    downloader_port.cancel = downloader_cancel;
+    downloader_port.log = downloader_log;
+    downloader_port.rx_overflow_count = downloader_overflow;
+    memset(&downloader_config, 0, sizeof(downloader_config));
+    downloader_config.ca_file = "UFS:" ABOX_BOOT_V2_CA_FILE;
+    downloader_config.transfer_buffer = g.port.transfer_buffer;
+    downloader_config.transfer_buffer_size = g.port.transfer_buffer_size;
+    downloader_config.vector_valid = downloader_vector;
+    downloader_config.direct_supported = 1U;
+    if (!ABoxHttpsUfs_Init(&g.downloader, &downloader_port,
+                           &downloader_config))
+        return 0;
     port->register_events(port->context, event_received, 0);
     return valid_config();
 }
@@ -771,10 +913,46 @@ static int stable_slot_needs_seed(void)
                    sizeof(state.stable_image_version)) != 0;
 }
 
+static void commit_verified_candidate(void)
+{
+    ABoxBootV2Record state;
+    const uint8_t was_seeding = g.seeding;
+    memset(&state, 0, sizeof(state));
+    (void)ABoxBootV2_StateLoad(&state);
+    state.candidate_slot = g.slot;
+    state.image_size = g.expected_size;
+    state.image_crc32 = g.expected_crc;
+    (void)snprintf(state.image_version, sizeof(state.image_version), "%s",
+                   g.version);
+    if (was_seeding) {
+        state.state = ABOX_BOOT_V2_CONFIRMED;
+        state.stable_slot = g.slot;
+        state.stable_image_size = g.expected_size;
+        state.stable_image_crc32 = g.expected_crc;
+        (void)snprintf(state.stable_image_version,
+                       sizeof(state.stable_image_version), "%s", g.version);
+    } else {
+        state.state = ABOX_BOOT_V2_INSTALL_PENDING;
+    }
+    if (!ABoxBootV2_StateSave(&state)) {
+        download_fail(ABOX_BOOT_V2_APP_ERROR_STATE);
+        return;
+    }
+    g.busy = 0U;
+    g.seeding = 0U;
+    g.install_ready = (uint8_t)!was_seeding;
+    g.last_error = 0U;
+    g.state = ST_IDLE;
+    resume_mqtt();
+    log_message(1U, was_seeding ? "Boot V2 stable slot seeded"
+                                 : "Boot V2 candidate verified");
+}
+
 void ABoxBootV2App_Task(void)
 {
     char command[128];
     ABoxBootV2Record state;
+    uint32_t downloader_error;
 
     if ((g.state == ST_ERROR || g.state == ST_RETRY) &&
         (int32_t)(now() - g.retry_due) >= 0) {
@@ -783,6 +961,15 @@ void ABoxBootV2App_Task(void)
         return;
     }
     if (g.state == ST_ERROR || g.state == ST_RETRY) return;
+
+    if (g.state == ST_DOWNLOADER) {
+        ABoxHttpsUfs_Task(&g.downloader);
+        if (ABoxHttpsUfs_TakeSuccess(&g.downloader))
+            commit_verified_candidate();
+        else if (ABoxHttpsUfs_TakeFailure(&g.downloader, &downloader_error))
+            download_fail(downloader_error);
+        return;
+    }
 
     if (g.provisioned && !g.busy && !g.seed_attempted && stable_slot_needs_seed()) {
         ABoxBootV2AppRequest request;
@@ -940,10 +1127,16 @@ const char *ABoxBootV2App_Phase(void)
     if (g.state == ST_WAIT) return "WAIT_MODEM";
     if (g.state == ST_RETRY) return "RETRY_WAIT";
     if (provision_state(g.state)) return "PROVISIONING";
+    if (g.state == ST_DOWNLOADER) return ABoxHttpsUfs_Phase(&g.downloader);
     if (g.state >= ST_MQTT_DISC && g.state <= ST_FILE_CLOSE) return "DOWNLOADING";
     if (g.state >= ST_FILE_LIST && g.state <= ST_VERIFY) return "VERIFYING";
     if (g.state == ST_ERROR) return "ERROR";
     return "IDLE";
+}
+
+const ABoxHttpsUfsMetrics *ABoxBootV2App_DownloadMetrics(void)
+{
+    return ABoxHttpsUfs_Metrics(&g.downloader);
 }
 
 int ABoxBootV2App_TakeInstallReady(void)

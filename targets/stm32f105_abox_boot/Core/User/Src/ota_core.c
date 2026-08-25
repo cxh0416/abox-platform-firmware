@@ -160,7 +160,7 @@ static uint8_t ufs_delete(uint8_t slot)
     return result;
 }
 
-#if 0 /* Frozen Boot V2 never downloads: App owns HTTPS/CA/Range staging. */
+#if 0 /* Frozen Boot V2 never downloads: App owns HTTPS/CA/direct+Range staging. */
 /* Stage the existing public OTA request into UFS before BootState is changed.
  * This keeps the public URL-only OTA command compatible while ensuring Boot
  * never installs a partially received image. */

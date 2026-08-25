@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "abox_boot_v2.h"
+#include "abox_https_ufs_downloader.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -48,6 +49,7 @@ typedef struct {
     void (*log)(void *context, uint8_t level, const char *message);
     uint8_t *transfer_buffer;
     uint32_t transfer_buffer_size;
+    uint32_t (*rx_overflow_count)(void *context);
 } ABoxBootV2AppPort;
 
 typedef struct {
@@ -75,6 +77,7 @@ const char *ABoxBootV2App_TargetVersion(void);
 uint32_t ABoxBootV2App_LastError(void);
 int ABoxBootV2App_TakeInstallReady(void);
 int ABoxBootV2App_TakeFailure(uint32_t *error);
+const ABoxHttpsUfsMetrics *ABoxBootV2App_DownloadMetrics(void);
 
 #ifdef __cplusplus
 }
