@@ -13,7 +13,7 @@
 - `targets/stm32f105_abox_boot/`：完整、可独立构建的公共 Boot 工程。
 - `tests/`：公共组件主机测试。
 - `tools/`：Flash 布局、产品矩阵、基线和产品发布校验工具。
-- `docs/`：平台合同、产品迁移矩阵和基线记录。
+- `docs/`：平台合同、唯一的设备公共 MQTT 协议、产品迁移矩阵和基线记录。
 
 `build-host/` 和各目标下的 `build/` 是本地构建缓存，不属于平台源码。
 
@@ -41,7 +41,9 @@ abox_platform_attach(Product_App)
 abox_platform_attach_boot_v2_app(Product_App)
 ```
 
-产品仓库继续拥有业务协议、CAN/RS485、执行器逻辑、MQTT Topic、产品配置结构、App 硬件适配和发布包装。不得在产品仓库复制或局部修改公共 Boot。
+平台仓库维护跨设备共用的 MQTT 报文外层、QoS、幂等、心跳和 `deviceType` 注册；产品仓库只维护对应设备 Profile、CAN/RS485、执行器逻辑、产品 Topic、状态字段、产品配置结构、App 硬件适配和发布包装。产品仓库不得复制公共 MQTT 协议，也不得复制或局部修改公共 Boot。
+
+公共 MQTT V3 规范见 [A-BOX 设备公共 MQTT 协议](docs/protocols/A-BOX设备公共MQTT协议-V3.0.md)。
 
 当前 `Top_Flying_Wing`、`LockCtrlBoard_cheweishi`、`Meal_Delivery_Vehicle`、`Sweeper_VCU` 已接入公共 Boot；`Airport_vehicle`、`CageDumper` 仍为旧 Boot 网络下载架构，切换前必须先改造 App，并确认旧设备迁移方案。
 

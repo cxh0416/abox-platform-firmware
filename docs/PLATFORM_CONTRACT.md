@@ -23,7 +23,7 @@
 
 完整公共 Boot 目标包含 CubeMX `.ioc`、HAL/CMSIS、启动文件、链接脚本、STM32F105/EC800 硬件适配、构建脚本、校验脚本和冻结二进制。它只适用于文档声明的统一硬件与地址合同。
 
-产品仓库继续拥有 App 的 CubeMX/HAL 工程、产品业务协议、MQTT Topic、CAN/RS485、执行器逻辑、产品配置页结构、App 侧 EC800 HAL/调度器端口适配、版本和发布包装。不同 MCU、Flash/RAM 容量、UART 或 EC800 电源引脚不得直接复用当前公共 Boot 二进制。
+平台仓库拥有跨设备共用的 MQTT V3 报文外层、QoS、请求幂等、心跳规则和 `deviceType` 注册。产品仓库继续拥有 App 的 CubeMX/HAL 工程、对应设备业务 Profile、产品 Topic 和状态字段、CAN/RS485、执行器逻辑、产品配置页结构、App 侧 EC800 HAL/调度器端口适配、版本和发布包装。不同 MCU、Flash/RAM 容量、UART 或 EC800 电源引脚不得直接复用当前公共 Boot 二进制。
 
 ## 2. 兼容原则
 
