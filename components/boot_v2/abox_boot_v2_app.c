@@ -68,6 +68,7 @@ typedef struct {
     uint8_t ca_repair_attempted;
     uint8_t ca_repair_pending;
     uint8_t seed_attempted;
+    uint8_t stable_checked;
     uint8_t file_seen;
     uint32_t handle;
     uint32_t expected_size;
@@ -94,8 +95,8 @@ typedef struct {
     uint8_t direct_supported;
 } Context;
 
-/* Product linker scripts place this reset-scratch workspace after the fixed
- * fault mailbox so the 1 KiB transfer buffer does not consume normal BSS. */
+/* Product linker scripts place this reset-scratch context after the fixed
+ * fault mailbox so it does not consume normal BSS. */
 static Context g __attribute__((section(".ota_work")));
 const char g_abox_boot_v2_stable_seed_source_marker[]
     __attribute__((used)) = "ABOX_STABLE_SEED_SOURCE=" ABOX_BOOT_V2_STABLE_SEED_SOURCE;
@@ -371,7 +372,10 @@ static void download_fail(uint32_t error)
     resume_mqtt();
     g.last_error = error;
     if (g.busy && !was_seeding) g.failure_pending = 1U;
-    if (was_seeding) g.seed_attempted = 0U;
+    if (was_seeding) {
+        g.seed_attempted = 0U;
+        g.stable_checked = 0U;
+    }
     g.busy = 0U;
     g.seeding = 0U;
     g.handle_valid = 0U;
@@ -993,6 +997,14 @@ static int stable_slot_needs_seed(void)
                    sizeof(state.stable_image_version)) != 0;
 }
 
+static int stable_slot_check_eligible(void)
+{
+    ABoxBootV2Record state;
+    if (!ABoxBootV2_StateLoad(&state)) return 1;
+    return state.state == ABOX_BOOT_V2_CONFIRMED ||
+           state.state == ABOX_BOOT_V2_NORMAL;
+}
+
 static void commit_verified_candidate(void)
 {
     ABoxBootV2Record state;
@@ -1051,11 +1063,16 @@ void ABoxBootV2App_Task(void)
         return;
     }
 
-    if (g.provisioned && !g.busy && !g.seed_attempted && stable_slot_needs_seed()) {
-        g.seed_attempted = 1U;
-        if (!begin_local_seed()) {
-            g.seed_attempted = 0U;
-            download_fail(ABOX_BOOT_V2_APP_ERROR_STATE);
+    if (g.provisioned && !g.busy && !g.seed_attempted && !g.stable_checked &&
+        stable_slot_check_eligible()) {
+        g.stable_checked = 1U;
+        if (stable_slot_needs_seed()) {
+            g.seed_attempted = 1U;
+            if (!begin_local_seed()) {
+                g.seed_attempted = 0U;
+                g.stable_checked = 0U;
+                download_fail(ABOX_BOOT_V2_APP_ERROR_STATE);
+            }
         }
         return;
     }

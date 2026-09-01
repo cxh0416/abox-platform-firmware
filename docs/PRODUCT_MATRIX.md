@@ -32,7 +32,7 @@
 |---|---|---|---|
 | `Top_Flying_Wing` | `TopFlyingWing_App.bin` | `ABox_Boot.bin` | `abox-boot-2.3.0` |
 | `LockCtrlBoard_cheweishi` | `LockCtrlBoard_App.bin` | `ABox_Boot.bin` | `abox-boot-2.3.0` |
-| `Meal_Delivery_Vehicle` | `LockCtrlBoard_App.bin` | `ABox_Boot.bin` | `abox-boot-2.3.0` |
+| `Meal_Delivery_Vehicle` | `MealDeliveryVehicle_App.bin` | `ABox_Boot.bin` | `abox-boot-2.3.0` |
 | `Sweeper_VCU` | `Sweeper_VCU_App.bin` | `ABox_Boot.bin` | `abox-boot-2.3.0` |
 
 以上四个产品均使用 `otaScheme=boot_v2_ufs`、`otaDownloader=app`、描述符 ABI 1 和特性掩码 `0x0000000F`。平台必须通过真实 `get_info` 获得 `otaReady=true`，不能从公共心跳、构建结果或 MQTT 确认推断设备具备 OTA 能力。

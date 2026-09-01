@@ -35,6 +35,7 @@ static uint8_t sent_payload[2048];
 static uint32_t sent_payload_length;
 static uint32_t raw_wanted;
 static uint32_t tick_now;
+static uint32_t flash_read_count;
 
 static const uint8_t ca[] = "test-ca";
 static const ABoxBootV2Layout boot_layout = {
@@ -48,6 +49,7 @@ static int flash_read(void *context, uint32_t address, uint8_t *data, uint32_t l
 {
     (void)context;
     if (address < BASE || address - BASE + length > sizeof(flash_mem)) return 0;
+    ++flash_read_count;
     memcpy(data, flash_mem + address - BASE, length);
     return 1;
 }
@@ -161,6 +163,7 @@ static void reset_transport(void)
     sent_payload_length = 0U;
     raw_wanted = 0U;
     tick_now = 1000U;
+    flash_read_count = 0U;
 }
 
 static void bind_platform(void)
@@ -426,6 +429,58 @@ static void test_local_stable_seed_does_not_use_http(void)
     assert(strcmp(state.stable_image_version, "abox-v2-current") == 0);
 }
 
+static void test_matching_stable_slot_is_checked_only_once(void)
+{
+    ABoxBootV2Record state;
+    ABoxBootV2Descriptor descriptor;
+    uint8_t image[128];
+    uint32_t reads_after_check;
+    uint32_t index;
+
+    memset(flash_mem, 0xFF, sizeof(flash_mem));
+    memset(image, 0xA5, sizeof(image));
+    image[0] = 0x00U; image[1] = 0x40U; image[2] = 0x00U; image[3] = 0x20U;
+    image[4] = 0x01U; image[5] = 0x81U; image[6] = 0x00U; image[7] = 0x08U;
+    memcpy(flash_mem + 0x8000U, image, sizeof(image));
+
+    memset(&state, 0, sizeof(state));
+    state.state = ABOX_BOOT_V2_CONFIRMED;
+    state.stable_slot = 0U;
+    state.stable_image_size = sizeof(image);
+    state.stable_image_crc32 = ABoxBootV2_Crc32(image, sizeof(image));
+    snprintf(state.stable_image_version, sizeof(state.stable_image_version),
+             "abox-v2-current");
+    assert(ABoxBootV2_StateSave(&state));
+
+    memset(&descriptor, 0, sizeof(descriptor));
+    descriptor.magic = ABOX_BOOT_V2_DESCRIPTOR_MAGIC;
+    descriptor.abi_version = ABOX_BOOT_V2_DESCRIPTOR_ABI;
+    descriptor.length = sizeof(descriptor);
+    descriptor.feature_flags = ABOX_BOOT_V2_REQUIRED_FEATURES;
+    descriptor.crc32 = ABoxBootV2_Crc32(
+        &descriptor, (uint32_t)offsetof(ABoxBootV2Descriptor, crc32));
+    memcpy(flash_mem + ABOX_BOOT_V2_DESCRIPTOR_ADDR - BASE,
+           &descriptor, sizeof(descriptor));
+
+    reset_transport();
+    init_app();
+    complete_probes();
+    finish_existing_ca();
+
+    flash_read_count = 0U;
+    memset(transfer, 0x5AU, sizeof(transfer));
+    ABoxBootV2App_Task();
+    reads_after_check = flash_read_count;
+    assert(reads_after_check > 0U);
+    assert(strcmp(ABoxBootV2App_Phase(), "IDLE") == 0);
+
+    memset(transfer, 0x5AU, sizeof(transfer));
+    for (index = 0U; index < 5U; ++index) ABoxBootV2App_Task();
+    assert(flash_read_count == reads_after_check);
+    for (index = 0U; index < sizeof(transfer); ++index)
+        assert(transfer[index] == 0x5AU);
+}
+
 static void test_download_failure_waits_before_retry(void)
 {
     ABoxBootV2AppRequest request;
@@ -466,6 +521,7 @@ int main(void)
     test_missing_ca_is_uploaded_and_verified();
     test_ca_error_is_distinct();
     test_local_stable_seed_does_not_use_http();
+    test_matching_stable_slot_is_checked_only_once();
     prepare_flash();
     test_candidate_download();
     test_download_failure_waits_before_retry();
