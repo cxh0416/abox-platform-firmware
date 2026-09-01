@@ -16,6 +16,7 @@
 |---|---|
 | `wing_actuator` | A-BOX 飞翼设备业务协议 |
 | `locker_compartment` | A-BOX 格口设备业务协议 |
+| `vehicle_chassis` | A-BOX 车辆底盘业务协议 |
 
 新增设备类型必须先登记稳定的 `deviceType`，再由对应产品仓库维护业务 Profile；不得在公共协议中加入某一设备独有的命令或状态字段。
 
