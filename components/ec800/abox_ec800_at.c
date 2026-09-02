@@ -215,6 +215,10 @@ static void emit_line(ABoxEc800At *at)
 
 static void push(ABoxEc800At *at, uint8_t value)
 {
+    if (at->line_drop_until_lf) {
+        if (value == '\n') at->line_drop_until_lf = 0U;
+        return;
+    }
     if (value == '\r') return;
     if (value == '>' && at->active_valid && at->active_payload_command &&
         !at->active_payload_sent) {
@@ -230,8 +234,12 @@ static void push(ABoxEc800At *at, uint8_t value)
     if (!at->line_length && (value == ' ' || value == '\t')) return;
     if (at->line_length < ABOX_EC800_AT_LINE_SIZE - 1U)
         at->line[at->line_length++] = value;
-    else
+    else {
         at->line_length = 0U;
+        at->line_drop_until_lf = 1U;
+        if (at->line_overflow_count != 0xFFFFFFFFUL)
+            ++at->line_overflow_count;
+    }
 }
 
 static int next_command(const ABoxEc800At *at)
@@ -276,13 +284,16 @@ void ABoxEc800At_Reset(ABoxEc800At *at)
     ABoxEc800AtPort port;
     ABoxEc800Handler handlers[ABOX_EC800_AT_HANDLER_SIZE];
     uint32_t rx_overflow_count;
+    uint32_t line_overflow_count;
     if (!at) return;
     port = at->port;
     rx_overflow_count = at->rx_overflow_count;
+    line_overflow_count = at->line_overflow_count;
     memcpy(handlers, at->handlers, sizeof(handlers));
     memset(at, 0, sizeof(*at));
     at->port = port;
     at->rx_overflow_count = rx_overflow_count;
+    at->line_overflow_count = line_overflow_count;
     memcpy(at->handlers, handlers, sizeof(handlers));
 }
 
@@ -496,4 +507,9 @@ void ABoxEc800At_SetRxOverflowCount(ABoxEc800At *at, uint32_t count)
 uint32_t ABoxEc800At_RxOverflowCount(const ABoxEc800At *at)
 {
     return at ? at->rx_overflow_count : 0U;
+}
+
+uint32_t ABoxEc800At_LineOverflowCount(const ABoxEc800At *at)
+{
+    return at ? at->line_overflow_count : 0U;
 }

@@ -208,6 +208,28 @@ static void test_circular_dma_wrap_and_overflow(void)
     ABoxEc800Rx_AfterRestart(&rx);
 }
 
+static void test_overlong_line_is_dropped_and_next_urc_recovers(void)
+{
+    ABoxEc800At at;
+    ABoxEc800AtPort port = {0, tick_ms, write_data, 0};
+    uint8_t input[ABOX_EC800_AT_LINE_SIZE + 64U];
+    const char next[] = "+QMTSTAT: 0,3\r\n";
+    size_t oversized = ABOX_EC800_AT_LINE_SIZE + 8U;
+
+    memset(input, 'A', oversized);
+    input[oversized++] = '\r';
+    input[oversized++] = '\n';
+    memcpy(input + oversized, next, sizeof(next) - 1U);
+    oversized += sizeof(next) - 1U;
+
+    g_line_count = 0U;
+    assert(ABoxEc800At_Init(&at, &port));
+    assert(ABoxEc800At_Register(&at, ABOX_EC800_OWNER_MQTT, event, 0));
+    ABoxEc800At_Feed(&at, input, (uint16_t)oversized);
+    assert(ABoxEc800At_LineOverflowCount(&at) == 1U);
+    assert(g_line_count == 1U);
+}
+
 int main(void)
 {
     test_async_direct_command();
@@ -216,5 +238,6 @@ int main(void)
     test_owner_routing_and_raw_urc_glue();
     test_dma_half_full_and_wrap();
     test_circular_dma_wrap_and_overflow();
+    test_overlong_line_is_dropped_and_next_urc_recovers();
     return 0;
 }

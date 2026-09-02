@@ -56,3 +56,5 @@ void EC800_AT_SetRxOverflowCount(Ec800AtCore_t *core, uint32_t count)
 { ABoxEc800At_SetRxOverflowCount(core, count); }
 uint32_t EC800_AT_RxOverflowCount(const Ec800AtCore_t *core)
 { return ABoxEc800At_RxOverflowCount(core); }
+uint32_t EC800_AT_LineOverflowCount(const Ec800AtCore_t *core)
+{ return ABoxEc800At_LineOverflowCount(core); }

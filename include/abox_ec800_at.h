@@ -84,10 +84,12 @@ typedef struct {
     uint32_t active_tick;
     uint32_t abort_guard_tick;
     uint32_t rx_overflow_count;
+    uint32_t line_overflow_count;
     uint8_t active_valid;
     uint8_t active_payload_command;
     uint8_t active_wait_payload;
     uint8_t active_payload_sent;
+    uint8_t line_drop_until_lf;
 } ABoxEc800At;
 
 int ABoxEc800At_Init(ABoxEc800At *at, const ABoxEc800AtPort *port);
@@ -115,6 +117,7 @@ void ABoxEc800At_CancelAll(ABoxEc800At *at);
 void ABoxEc800At_AbortAll(ABoxEc800At *at, ABoxEc800Result result);
 void ABoxEc800At_SetRxOverflowCount(ABoxEc800At *at, uint32_t count);
 uint32_t ABoxEc800At_RxOverflowCount(const ABoxEc800At *at);
+uint32_t ABoxEc800At_LineOverflowCount(const ABoxEc800At *at);
 
 #ifdef __cplusplus
 }

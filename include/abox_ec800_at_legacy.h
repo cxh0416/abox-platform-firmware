@@ -70,6 +70,7 @@ void EC800_AT_CancelAll(Ec800AtCore_t *core);
 void EC800_AT_AbortAll(Ec800AtCore_t *core, Ec800AtCmdResult_t result);
 void EC800_AT_SetRxOverflowCount(Ec800AtCore_t *core, uint32_t count);
 uint32_t EC800_AT_RxOverflowCount(const Ec800AtCore_t *core);
+uint32_t EC800_AT_LineOverflowCount(const Ec800AtCore_t *core);
 
 #define EC800_AT_Feed EC800_AT_FeedRx
 
