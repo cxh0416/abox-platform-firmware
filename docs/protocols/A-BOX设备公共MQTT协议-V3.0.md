@@ -4,7 +4,7 @@
 
 报文版本：`3.0`
 
-修订日期：2026-08-31
+修订日期：2026-09-10
 
 ## 1. 协议定位
 
@@ -17,6 +17,9 @@
 | `wing_actuator` | A-BOX 飞翼设备业务协议 |
 | `locker_compartment` | A-BOX 格口设备业务协议 |
 | `vehicle_chassis` | A-BOX 车辆底盘业务协议 |
+| `sweeper_vehicle` | A-BOX 清扫车业务协议 |
+
+`vehicle_chassis` 表示独立的车辆底盘控制设备，`sweeper_vehicle` 表示清扫车整车 VCU；两者是并列且互斥的业务 Profile。不同 Profile 可以定义同名命令，但字段、响应边界和状态语义只按报文中的精确 `deviceType` 解释，不构成协议继承。
 
 新增设备类型必须先登记稳定的 `deviceType`，再由对应产品仓库维护业务 Profile；不得在公共协议中加入某一设备独有的命令或状态字段。
 
