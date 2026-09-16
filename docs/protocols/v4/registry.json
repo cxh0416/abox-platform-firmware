@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "protocolVersion": "4.0",
+  "core": {
+    "commands": [
+      {
+        "name": "sync_state",
+        "classification": "CORE",
+        "operationMatcher": {"field": "data.command", "equals": "sync_state"}
+      }
+    ]
+  },
+  "profiles": [
+    {
+      "name": "locker",
+      "supportedMajors": [1],
+      "currentVersion": "1.0",
+      "contract": "https://github.com/cxh0416/abox-meal-delivery-firmware/blob/main/docs/protocols/A-BOX格口设备业务协议-V4.0.md",
+      "commands": [
+        {
+          "name": "open_locker",
+          "classification": "DISCRETE_ACTION",
+          "operationMatcher": {"field": "data.command", "equals": "open_locker"}
+        },
+        {
+          "name": "check_locker_status",
+          "classification": "QUERY",
+          "operationMatcher": {"field": "data.command", "equals": "check_locker_status"}
+        }
+      ],
+      "reports": [
+        {
+          "name": "locker_status",
+          "reportType": "state",
+          "operationMatcher": {"field": "data.reportName", "equals": "locker_status"}
+        }
+      ]
+    }
+  ]
+}

@@ -45,6 +45,8 @@ abox_platform_attach_boot_v2_app(Product_App)
 
 正式公共基线为 [MQTT V4](docs/protocols/A-BOX设备公共MQTT协议-V4.0.md)；[MQTT V3](docs/protocols/A-BOX设备公共MQTT协议-V3.0.md) 仅供尚未整批迁移的存量项目使用。V4 设备单版本运行，跨项目迁移期间由平台同时保留 V3/V4 Handler。
 
+V4 Core 命令和已冻结 Profile 的唯一机器可校验登记入口是 [V4 Registry](docs/protocols/v4/registry.json)。运行 `python tools/validate_mqtt_v4.py` 可校验 Registry 和 Canonicalization/SHA-256 固定向量。
+
 当前 `Top_Flying_Wing`、`LockCtrlBoard_cheweishi`、`Meal_Delivery_Vehicle`、`Sweeper_VCU` 已接入公共 Boot；`Airport_vehicle`、`CageDumper` 仍为旧 Boot 网络下载架构，切换前必须先改造 App，并确认旧设备迁移方案。
 
 ## 构建与验证
