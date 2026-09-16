@@ -51,8 +51,68 @@ def load_contract_json(text: str):
     )
 
 
+def utf16_sort_key(value: str) -> bytes:
+    return value.encode("utf-16-be")
+
+
 def canonicalize(value) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    """RFC 8785 compatible serializer for the V4 integer-only JSON subset."""
+    if value is None:
+        return "null"
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    if isinstance(value, int):
+        if abs(value) > SAFE_INTEGER:
+            raise ContractError("integer exceeds the safe range")
+        return str(value)
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    if isinstance(value, list):
+        return "[" + ",".join(canonicalize(item) for item in value) + "]"
+    if isinstance(value, dict):
+        if not all(isinstance(key, str) for key in value):
+            raise ContractError("JSON object keys must be strings")
+        fields = (
+            canonicalize(key) + ":" + canonicalize(value[key])
+            for key in sorted(value, key=utf16_sort_key)
+        )
+        return "{" + ",".join(fields) + "}"
+    raise ContractError(f"unsupported JSON value: {type(value).__name__}")
+
+
+def normalize_vector(vector):
+    value = vector["value"]
+    normalization = vector.get("normalization")
+    if normalization == "manifest":
+        normalized_profiles = []
+        for profile in value["profiles"]:
+            normalized = dict(profile)
+            if "instances" in normalized:
+                instances = normalized["instances"]
+                if len(instances) != len(set(instances)):
+                    raise ContractError("manifest instances must be unique")
+                normalized["instances"] = sorted(instances, key=utf16_sort_key)
+            normalized_profiles.append(normalized)
+        normalized_profiles.sort(key=lambda profile: utf16_sort_key(profile["name"]))
+        normalized_value = dict(value)
+        normalized_value["profiles"] = normalized_profiles
+        return normalized_value
+    if normalization == "locker_grid_set":
+        normalized_value = dict(value)
+        params = dict(value["params"])
+        grid_numbers = params["gridNos"]
+        if not grid_numbers or any(not item.isdigit() or (len(item) > 1 and item[0] == "0") for item in grid_numbers):
+            raise ContractError("locker grid numbers must be canonical decimal strings")
+        if len(grid_numbers) != len(set(grid_numbers)):
+            raise ContractError("locker grid numbers must be unique")
+        params["gridNos"] = sorted(grid_numbers, key=int)
+        normalized_value["params"] = params
+        return normalized_value
+    if normalization is not None:
+        raise ContractError(f"unknown normalization: {normalization}")
+    return value
 
 
 def validate_registry(registry) -> list[str]:
@@ -76,11 +136,18 @@ def validate_registry(registry) -> list[str]:
             failures.append(f"{kind} {name}: conflicting operationMatcher {matcher_key}")
         else:
             matchers.add(matcher_key)
+        for required in ("ownerProfile", "introducedVersion", "semanticDescription"):
+            if not operation.get(required):
+                failures.append(f"{kind} {name}: {required} is required")
+        if not PROFILE_VERSION.fullmatch(operation.get("introducedVersion", "")):
+            failures.append(f"{kind} {name}: introducedVersion must be MAJOR.MINOR")
 
     if registry.get("protocolVersion") != "4.0":
         failures.append("registry protocolVersion must be 4.0")
 
     for command in registry.get("core", {}).get("commands", []):
+        if command.get("ownerProfile") != "core":
+            failures.append(f"core command {command.get('name')}: ownerProfile must be core")
         register_operation("core command", command)
 
     profile_names = set()
@@ -97,13 +164,21 @@ def validate_registry(registry) -> list[str]:
         match = PROFILE_VERSION.fullmatch(version or "")
         if not match:
             failures.append(f"profile {name}: invalid currentVersion {version!r}")
-        elif int(match.group(1)) not in majors:
-            failures.append(f"profile {name}: current major is not supported")
+        else:
+            major, minor = int(match.group(1)), int(match.group(2))
+            if major > 65535 or minor > 65535:
+                failures.append(f"profile {name}: version component exceeds uint16")
+            if major not in majors:
+                failures.append(f"profile {name}: current major is not supported")
         if not profile.get("contract"):
             failures.append(f"profile {name}: contract reference is required")
         for command in profile.get("commands", []):
+            if command.get("ownerProfile") != name:
+                failures.append(f"profile {name} command {command.get('name')}: ownerProfile mismatch")
             register_operation(f"profile {name} command", command)
         for report in profile.get("reports", []):
+            if report.get("ownerProfile") != name:
+                failures.append(f"profile {name} report {report.get('name')}: ownerProfile mismatch")
             register_operation(f"profile {name} report", report)
 
     if not registry.get("profiles"):
@@ -120,7 +195,7 @@ def main() -> int:
 
     failures = validate_registry(registry)
     for vector in vectors["valid"]:
-        actual = canonicalize(vector["value"])
+        actual = canonicalize(normalize_vector(vector))
         digest = hashlib.sha256(actual.encode("utf-8")).hexdigest()
         if actual != vector["canonical"]:
             failures.append(f"{vector['name']}: canonical bytes mismatch")

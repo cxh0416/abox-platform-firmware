@@ -5,6 +5,9 @@
     "commands": [
       {
         "name": "sync_state",
+        "ownerProfile": "core",
+        "introducedVersion": "4.0",
+        "semanticDescription": "Request complete state reports for every currently enabled stateful profile.",
         "classification": "CORE",
         "operationMatcher": {"field": "data.command", "equals": "sync_state"}
       }
@@ -19,11 +22,17 @@
       "commands": [
         {
           "name": "open_locker",
+          "ownerProfile": "locker",
+          "introducedVersion": "1.0",
+          "semanticDescription": "Open the requested locker compartments and return the final confirmed result.",
           "classification": "DISCRETE_ACTION",
           "operationMatcher": {"field": "data.command", "equals": "open_locker"}
         },
         {
           "name": "check_locker_status",
+          "ownerProfile": "locker",
+          "introducedVersion": "1.0",
+          "semanticDescription": "Read the current public state of the requested locker compartments.",
           "classification": "QUERY",
           "operationMatcher": {"field": "data.command", "equals": "check_locker_status"}
         }
@@ -31,6 +40,9 @@
       "reports": [
         {
           "name": "locker_status",
+          "ownerProfile": "locker",
+          "introducedVersion": "1.0",
+          "semanticDescription": "Complete public state snapshot for every configured locker compartment.",
           "reportType": "state",
           "operationMatcher": {"field": "data.reportName", "equals": "locker_status"}
         }

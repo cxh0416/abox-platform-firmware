@@ -3,15 +3,16 @@
   "algorithm": "RFC8785-JCS+SHA-256",
   "valid": [
     {
-      "name": "locker-manifest",
-      "value": {"profiles": [{"version": "1.0", "name": "locker"}]},
-      "canonical": "{\"profiles\":[{\"name\":\"locker\",\"version\":\"1.0\"}]}",
-      "sha256": "fd101de3922665501ff81f488ea5d9f3fcc32aeac3ab740d5a7ad62abf0e9e6f"
+      "name": "normalized-manifest",
+      "normalization": "manifest",
+      "value": {"profiles": [{"instances": ["2", "1"], "version": "1.1", "name": "example_b"}, {"version": "1.0", "name": "example_a"}], "firmware": "test-1.0.0"},
+      "canonical": "{\"firmware\":\"test-1.0.0\",\"profiles\":[{\"name\":\"example_a\",\"version\":\"1.0\"},{\"instances\":[\"1\",\"2\"],\"name\":\"example_b\",\"version\":\"1.1\"}]}",
+      "sha256": "c59a64516ec2b9a7baa3695d65783d375000b6d323c4446e7df9abe6e144bda3"
     },
     {
       "name": "normalized-locker-request",
-      "normalization": "gridNos is a numeric set and is already normalized",
-      "value": {"params": {"gridNos": ["1", "2", "6"]}, "expiresAt": 1770186098000, "command": "open_locker"},
+      "normalization": "locker_grid_set",
+      "value": {"params": {"gridNos": ["6", "1", "2"]}, "expiresAt": 1770186098000, "command": "open_locker"},
       "canonical": "{\"command\":\"open_locker\",\"expiresAt\":1770186098000,\"params\":{\"gridNos\":[\"1\",\"2\",\"6\"]}}",
       "sha256": "3e79f070a44ee9512e6ba7f439eaa843580b3556e354e6674f208422a3f0c543"
     },
