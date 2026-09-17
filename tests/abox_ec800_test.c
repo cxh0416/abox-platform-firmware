@@ -18,6 +18,7 @@ static uint16_t g_tx_length;
 static uint32_t g_done_count;
 static ABoxEc800Result g_done_result;
 static uint32_t g_line_count;
+static uint16_t g_last_line_length;
 static uint32_t g_raw_count;
 static uint32_t g_sink_count;
 
@@ -44,7 +45,10 @@ static void event(ABoxEc800Event type, const uint8_t *data, uint16_t length,
     (void)data;
     (void)user;
     if (type == ABOX_EC800_EVENT_RAW) g_raw_count += length;
-    else ++g_line_count;
+    else {
+        ++g_line_count;
+        g_last_line_length = length;
+    }
 }
 static void sink(void *context, const uint8_t *data, uint16_t length)
 {
@@ -230,6 +234,30 @@ static void test_overlong_line_is_dropped_and_next_urc_recovers(void)
     assert(g_line_count == 1U);
 }
 
+static void test_internal_mqtt_max_payload_line_is_delivered(void)
+{
+    ABoxEc800At at;
+    ABoxEc800AtPort port = {0, tick_ms, write_data, 0};
+    uint8_t input[ABOX_EC800_AT_LINE_SIZE];
+    const char prefix[] = "+QMTRECV: 0,0,\"/zxwl/abox/device/internal/ota\",";
+    size_t length = sizeof(prefix) - 1U;
+
+    memcpy(input, prefix, length);
+    memset(input + length, 'A', 1280U);
+    length += 1280U;
+    input[length++] = '\r';
+    input[length++] = '\n';
+
+    g_line_count = 0U;
+    g_last_line_length = 0U;
+    assert(length <= sizeof(input));
+    assert(ABoxEc800At_Init(&at, &port));
+    assert(ABoxEc800At_Register(&at, ABOX_EC800_OWNER_MQTT, event, 0));
+    ABoxEc800At_Feed(&at, input, (uint16_t)length);
+    assert(g_line_count == 1U);
+    assert(g_last_line_length == (uint16_t)(length - 2U));
+}
+
 int main(void)
 {
     test_async_direct_command();
@@ -238,6 +266,7 @@ int main(void)
     test_owner_routing_and_raw_urc_glue();
     test_dma_half_full_and_wrap();
     test_circular_dma_wrap_and_overflow();
+    test_internal_mqtt_max_payload_line_is_delivered();
     test_overlong_line_is_dropped_and_next_urc_recovers();
     return 0;
 }
