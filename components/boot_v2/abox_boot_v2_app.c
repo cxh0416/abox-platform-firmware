@@ -809,6 +809,11 @@ static void command_done(ABoxBootV2AtResult result, void *user)
         command_succeeded();
         return;
     }
+    if (g.seeding && result == ABOX_BOOT_V2_AT_ERROR &&
+        (g.state == ST_MQTT_DISC || g.state == ST_MQTT_CLOSE)) {
+        command_succeeded();
+        return;
+    }
     if (provision_state(g.state)) {
         provision_fail(ABOX_BOOT_V2_APP_ERROR_CA);
         return;
