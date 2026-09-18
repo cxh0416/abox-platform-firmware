@@ -19,9 +19,32 @@ static const ABoxMqttProfileDescriptor locker_profile = {
     locker_reports, sizeof(locker_reports) / sizeof(locker_reports[0])
 };
 
+static const ABoxMqttCommandDescriptor vehicle_chassis_commands[] = {
+    {"power_on", "vehicle_chassis", ABOX_MQTT_COMMAND_DISCRETE_ACTION},
+    {"power_off", "vehicle_chassis", ABOX_MQTT_COMMAND_SAFETY_STOP},
+    {"chassis_control", "vehicle_chassis", ABOX_MQTT_COMMAND_CONTINUOUS_SESSION}
+};
+
+static const ABoxMqttReportDescriptor vehicle_chassis_reports[] = {
+    {"chassis_status", "vehicle_chassis", "state"}
+};
+
+static const ABoxMqttProfileDescriptor vehicle_chassis_profile = {
+    "vehicle_chassis", "1.0",
+    vehicle_chassis_commands,
+    sizeof(vehicle_chassis_commands) / sizeof(vehicle_chassis_commands[0]),
+    vehicle_chassis_reports,
+    sizeof(vehicle_chassis_reports) / sizeof(vehicle_chassis_reports[0])
+};
+
 const ABoxMqttProfileDescriptor *ABoxMqttV4_LockerProfile(void)
 {
     return &locker_profile;
+}
+
+const ABoxMqttProfileDescriptor *ABoxMqttV4_VehicleChassisProfile(void)
+{
+    return &vehicle_chassis_profile;
 }
 
 const ABoxMqttCommandDescriptor *ABoxMqttV4_FindCommand(

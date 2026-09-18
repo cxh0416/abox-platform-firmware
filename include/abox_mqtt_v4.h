@@ -10,7 +10,9 @@
 typedef enum {
     ABOX_MQTT_COMMAND_CORE = 0,
     ABOX_MQTT_COMMAND_QUERY,
-    ABOX_MQTT_COMMAND_DISCRETE_ACTION
+    ABOX_MQTT_COMMAND_DISCRETE_ACTION,
+    ABOX_MQTT_COMMAND_CONTINUOUS_SESSION,
+    ABOX_MQTT_COMMAND_SAFETY_STOP
 } ABoxMqttCommandClass;
 
 typedef struct {
@@ -35,6 +37,7 @@ typedef struct {
 } ABoxMqttProfileDescriptor;
 
 const ABoxMqttProfileDescriptor *ABoxMqttV4_LockerProfile(void);
+const ABoxMqttProfileDescriptor *ABoxMqttV4_VehicleChassisProfile(void);
 const ABoxMqttCommandDescriptor *ABoxMqttV4_FindCommand(
     const ABoxMqttProfileDescriptor *profile, const char *name);
 const ABoxMqttReportDescriptor *ABoxMqttV4_FindReport(
