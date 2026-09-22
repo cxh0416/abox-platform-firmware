@@ -104,7 +104,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ABoxPlatform.cmake)
 include(CTest)
 
 # Opt-in public foundations: no automatic product/OTA attachment.
-foreach(module ec800_ufs ec800_tls mqtt_tls mqtt_trial)
+foreach(module ec800_ufs ec800_tls mqtt_tls mqtt_runtime mqtt_trial)
     if(module MATCHES "^ec800")
         set(module_dir ec800)
     else()
@@ -119,6 +119,7 @@ target_link_libraries(abox_mqtt_tls PUBLIC abox::ec800_tls)
 add_library(abox_ec800_command_port STATIC components/ec800/abox_ec800_command_port.c)
 add_library(abox::ec800_command_port ALIAS abox_ec800_command_port)
 target_link_libraries(abox_ec800_command_port PUBLIC abox::ec800)
+target_link_libraries(abox_mqtt_runtime PUBLIC abox::mqtt_tls abox::ec800_command_port)
 
 if(BUILD_TESTING AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     foreach(module ec800_ufs ec800_tls mqtt_tls mqtt_trial ec800_command_port)

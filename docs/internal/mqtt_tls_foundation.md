@@ -95,12 +95,14 @@ CA 使用版本化专用文件，不覆盖 `UFS:ota_ca.pem`。正在使用的 CA
 ## candidate 试连合同
 
 ```text
-WAIT_ACCEPT -> PREPARING -> CONNECTING -> VERIFYING -> COMMITTING -> COMMITTED
+WAIT_ACCEPT -> PREPARING -> CONNECTING -> SUBSCRIBING -> VERIFYING -> COMMITTING -> COMMITTED
      任一失败/取消/超时 -> RESTORING -> FAILED 或 RESTORE_FAILED
 ```
 
 - active/candidate 为调用方持有的不同只读对象；未提交前 active 指针不改变。
 - ACCEPTED 只在旧连接上指定受理响应完成后上报。
+- CONNECTED 后必须独立完成本产品所需订阅并上报 SUBSCRIBED，不能把连接成功
+  当作已具备 proof 通道。
 - 所有事件关联本轮 session；PROVED 还要匹配指定 proof ID。
   产品负责将 client、连接代次、指定消息的结果映射到这两个 ID。
   任意 publish 计数增加和通用 MQTT ACK 都不能自动成为证明事件。
@@ -167,3 +169,11 @@ AT 层新增显式 quarantine 门禁：新适配器的活动事务取消、超�
 送餐车工作区只接入公共 TLS runtime，尚未接入公共 mqtt_trial。实机 context 2
 配置及绑定通过，server196 的证书/入口条件阻塞 TLS 端到端验收。详见产品
 `docs/operations/mqtt-tls-runtime-stage2.md`；不能据此宣称 TLS 上线。
+
+## Platform runtime 配置合同补充（2026-09-22）
+
+`abox_mqtt_trial` 的 active/candidate 已收敛为公共 `ABoxMqttConfig`，字段包含
+host、port、username、password、`tls_enabled`、`tls_profile_id`；产品必须从各自
+Flash ABI 映射，平台不依赖产品 layout。连接、订阅和指定 proof 现为三个独立门禁。
+完整配置语义、四类切换、禁止 TLS 失败后隐式降级以及统一内部运维字段见
+[`mqtt_runtime_contract.md`](mqtt_runtime_contract.md)。

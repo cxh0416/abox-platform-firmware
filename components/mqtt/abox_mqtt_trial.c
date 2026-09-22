@@ -2,17 +2,25 @@
 #include <string.h>
 int ABoxMqttTrial_Init(ABoxMqttTrial *t, const ABoxMqttTrialPort *p)
 {
-    if (!t || !p || !p->prepare || !p->connect || !p->verify || !p->commit || !p->restore) return 0;
+    if (!t || !p || !p->prepare || !p->connect || !p->subscribe || !p->verify ||
+        !p->commit || !p->restore) return 0;
     memset(t, 0, sizeof(*t)); t->port = *p; return 1;
 }
 static int running(const ABoxMqttTrial *t)
 { return t->state >= ABOX_MQTT_TRIAL_WAIT_ACCEPT && t->state <= ABOX_MQTT_TRIAL_COMMITTING; }
 static int timed(const ABoxMqttTrial *t)
 { return t->state >= ABOX_MQTT_TRIAL_PREPARING && t->state <= ABOX_MQTT_TRIAL_COMMITTING; }
-int ABoxMqttTrial_Start(ABoxMqttTrial *t, const void *active, const void *candidate,
+static int config_valid(const ABoxMqttConfig *config)
+{
+    return config && config->host && config->host[0] && config->port &&
+           config->username && config->password && config->tls_enabled <= 1U;
+}
+int ABoxMqttTrial_Start(ABoxMqttTrial *t, const ABoxMqttConfig *active,
+                       const ABoxMqttConfig *candidate,
                        uint64_t proof, uint32_t now, uint32_t timeout, uint32_t restore_timeout)
 {
-    if (!t || !t->port.prepare || !active || !candidate || active == candidate || !proof ||
+    if (!t || !t->port.prepare || !config_valid(active) || !config_valid(candidate) ||
+        active == candidate || !proof ||
         !timeout || timeout > INT32_MAX || !restore_timeout || restore_timeout > INT32_MAX ||
         running(t) || t->state == ABOX_MQTT_TRIAL_RESTORING ||
         t->state == ABOX_MQTT_TRIAL_RESTORE_FAILED || t->serial == UINT64_MAX) return 0;
@@ -54,6 +62,8 @@ void ABoxMqttTrial_Event(ABoxMqttTrial *t, uint64_t session,
     } else if (t->state == ABOX_MQTT_TRIAL_PREPARING && event == ABOX_MQTT_TRIAL_PREPARED) {
         t->state = ABOX_MQTT_TRIAL_CONNECTING; action = t->port.connect;
     } else if (t->state == ABOX_MQTT_TRIAL_CONNECTING && event == ABOX_MQTT_TRIAL_CONNECTED) {
+        t->state = ABOX_MQTT_TRIAL_SUBSCRIBING; action = t->port.subscribe;
+    } else if (t->state == ABOX_MQTT_TRIAL_SUBSCRIBING && event == ABOX_MQTT_TRIAL_SUBSCRIBED) {
         t->state = ABOX_MQTT_TRIAL_VERIFYING; action = t->port.verify;
     } else if (t->state == ABOX_MQTT_TRIAL_VERIFYING && event == ABOX_MQTT_TRIAL_PROVED && proof == t->proof) {
         t->state = ABOX_MQTT_TRIAL_COMMITTING; action = t->port.commit;
