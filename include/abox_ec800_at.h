@@ -90,10 +90,13 @@ typedef struct {
     uint8_t active_wait_payload;
     uint8_t active_payload_sent;
     uint8_t line_drop_until_lf;
+    uint8_t quarantined;
 } ABoxEc800At;
 
 int ABoxEc800At_Init(ABoxEc800At *at, const ABoxEc800AtPort *port);
 void ABoxEc800At_Reset(ABoxEc800At *at);
+/* Opt-in fail-closed gate; cleared only by Reset after physical modem reset. */
+void ABoxEc800At_Quarantine(ABoxEc800At *at);
 void ABoxEc800At_Feed(ABoxEc800At *at, const uint8_t *data, uint16_t length);
 void ABoxEc800At_Task(ABoxEc800At *at);
 int ABoxEc800At_Submit(ABoxEc800At *at, const char *command,

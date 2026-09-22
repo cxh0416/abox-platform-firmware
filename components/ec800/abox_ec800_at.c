@@ -319,7 +319,7 @@ void ABoxEc800At_Feed(ABoxEc800At *at, const uint8_t *data, uint16_t length)
 
 void ABoxEc800At_Task(ABoxEc800At *at)
 {
-    if (!at) return;
+    if (!at || at->quarantined) return;
     if (at->active_valid && tick(at) - at->active_tick >= at->active.timeout_ms) {
         if (at->active_payload_command && !at->active_payload_sent) {
             const uint8_t escape = 0x1BU;
@@ -332,7 +332,14 @@ void ABoxEc800At_Task(ABoxEc800At *at)
         if (tick(at) - at->abort_guard_tick < ABORT_GUARD_MS) return;
         at->abort_guard_tick = 0U;
     }
-    start_next(at);
+    if (!at->quarantined) start_next(at);
+}
+
+void ABoxEc800At_Quarantine(ABoxEc800At *at)
+{
+    if (!at) return;
+    at->quarantined = 1U;
+    ABoxEc800At_CancelAll(at);
 }
 
 int ABoxEc800At_Submit(ABoxEc800At *at, const char *command,
@@ -341,7 +348,7 @@ int ABoxEc800At_Submit(ABoxEc800At *at, const char *command,
 {
     uint8_t i;
     uint16_t length;
-    if (!at || !command || !*command || owner == ABOX_EC800_OWNER_NONE) return 0;
+    if (!at || at->quarantined || !command || !*command || owner == ABOX_EC800_OWNER_NONE) return 0;
     for (i = 0U; i < ABOX_EC800_AT_QUEUE_SIZE; ++i) {
         if (at->queue[i].used) continue;
         memset(&at->queue[i], 0, sizeof(at->queue[i]));
