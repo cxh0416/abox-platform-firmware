@@ -41,11 +41,13 @@ static uint32_t now(const ABoxHttpsUfsDownloader *d)
 
 static void log_metrics(ABoxHttpsUfsDownloader *d, const char *result)
 {
-    char message[192];
+    char message[256];
     if (!d->port.log) return;
     (void)snprintf(message, sizeof(message),
-                   "HTTPS/UFS %s backend=%s fallback=%u get=%lums store=%lums verify=%lums total=%lums overflow=%lu error=%lu",
+                   "HTTPS/UFS %s phase=%s command=%s backend=%s fallback=%u get=%lums store=%lums verify=%lums total=%lums overflow=%lu error=%lu",
                    result,
+                   d->failure_phase[0] ? d->failure_phase : ABoxHttpsUfs_Phase(d),
+                   d->failure_command[0] ? d->failure_command : d->last_command,
                    d->metrics.backend == ABOX_HTTPS_UFS_BACKEND_DIRECT ? "direct" : "range",
                    (unsigned)d->metrics.fallback_reason,
                    (unsigned long)d->metrics.get_ms,
@@ -79,6 +81,7 @@ static void command_done(ABoxHttpsUfsAtResult result, void *user);
 static int submit(ABoxHttpsUfsDownloader *d, const char *command,
                   uint32_t timeout_ms)
 {
+    (void)snprintf(d->last_command, sizeof(d->last_command), "%s", command);
     d->payload_sent = 0U;
     if (d->port.submit && d->port.submit(d->port.context, command, timeout_ms,
                                          command_done, d))
@@ -102,6 +105,8 @@ static void finalize_failure(ABoxHttpsUfsDownloader *d, uint32_t error)
 static void finish_failure(ABoxHttpsUfsDownloader *d, uint32_t error)
 {
     char command[96];
+    (void)snprintf(d->failure_command, sizeof(d->failure_command), "%s", d->last_command);
+    (void)snprintf(d->failure_phase, sizeof(d->failure_phase), "%s", ABoxHttpsUfs_Phase(d));
     if (d->port.cancel) d->port.cancel(d->port.context);
     d->pending_error = error;
     d->state = ST_FAILURE_DELETE;

@@ -135,6 +135,9 @@ struct ABoxHttpsUfsDownloader {
     uint32_t verify_started_at;
     uint32_t rx_overflow_start;
     uint32_t pending_error;
+    char last_command[80];
+    char failure_command[80];
+    char failure_phase[24];
     uint8_t vector[8];
     uint8_t vector_length;
     uint8_t handle_valid;

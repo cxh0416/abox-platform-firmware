@@ -15,6 +15,7 @@ typedef struct {
     ABoxHttpsUfsDoneFn done;
     void *done_user;
     char command[320];
+    char last_log[256];
     uint32_t tick;
     uint8_t active;
     uint8_t direct_failures;
@@ -24,6 +25,7 @@ typedef struct {
     uint8_t range_started;
     uint8_t delete_errors;
     uint8_t invalid_vector;
+    uint8_t write_failures;
     uint8_t image[32];
     uint32_t image_size;
     uint32_t direct_response_size;
@@ -68,8 +70,8 @@ static void cancel(void *context)
 }
 static void log_line(void *context, uint8_t level, const char *message)
 {
-    (void)context;
     (void)level;
+    (void)snprintf(((Mock *)context)->last_log, sizeof(((Mock *)context)->last_log), "%s", message);
     puts(message);
 }
 static uint32_t rx_overflow(void *context)
@@ -162,6 +164,9 @@ static void service_command(ABoxHttpsUfsDownloader *d, Mock *m)
         finish(m, ABOX_HTTPS_UFS_AT_ERROR);
     } else if (strncmp(current, "AT+QFDEL=", 10U) == 0 && m->delete_errors) {
         --m->delete_errors;
+        finish(m, ABOX_HTTPS_UFS_AT_ERROR);
+    } else if (strncmp(current, "AT+QFWRITE=", 11U) == 0 && m->write_failures) {
+        --m->write_failures;
         finish(m, ABOX_HTTPS_UFS_AT_ERROR);
     } else if (strncmp(current, "AT+QHTTPREADFILE=", 17U) == 0 &&
         m->direct_failures) {
@@ -340,6 +345,20 @@ static void test_file_size_failure_never_succeeds(void)
     assert(error == ABOX_HTTPS_UFS_ERROR_SIZE);
 }
 
+static void test_ufs_error_log_identifies_command(void)
+{
+    ABoxHttpsUfsDownloader d;
+    Mock m;
+    uint32_t error = 0U;
+    setup(&d, &m, 0U);
+    m.write_failures = 1U;
+    run_until_done(&d, &m);
+    assert(ABoxHttpsUfs_TakeFailure(&d, &error));
+    assert(error == ABOX_HTTPS_UFS_ERROR_UFS);
+    assert(strstr(m.last_log, "phase=DOWNLOADING_RANGE") != 0);
+    assert(strstr(m.last_log, "command=AT+QFWRITE=") != 0);
+}
+
 int main(void)
 {
     test_direct_success();
@@ -351,5 +370,6 @@ int main(void)
     test_second_integrity_failure_is_final();
     test_vector_failure_never_succeeds();
     test_file_size_failure_never_succeeds();
+    test_ufs_error_log_identifies_command();
     return 0;
 }

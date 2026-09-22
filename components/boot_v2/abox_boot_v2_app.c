@@ -86,6 +86,8 @@ typedef struct {
     uint32_t written_total;
     uint32_t file_size;
     uint32_t last_error;
+    uint8_t mqtt_client_index;
+    char last_command[80];
     uint32_t retry_due;
     char url[ABOX_BOOT_V2_APP_URL_SIZE];
     char version[ABOX_BOOT_V2_APP_VERSION_SIZE];
@@ -140,9 +142,9 @@ static void log_message(uint8_t level, const char *message)
 
 static void log_failure(const char *kind, uint32_t error, const char *stage)
 {
-    char message[128];
-    (void)snprintf(message, sizeof(message), "%s failed stage=%s code=%lu", kind, stage,
-                   (unsigned long)error);
+    char message[192];
+    (void)snprintf(message, sizeof(message), "%s failed stage=%s code=%lu command=%s", kind, stage,
+                   (unsigned long)error, g.last_command[0] ? g.last_command : "none");
     log_message(3U, message);
 }
 
@@ -235,6 +237,7 @@ static int downloader_submit(void *context, const char *command,
                              void *user)
 {
     (void)context;
+    (void)snprintf(g.last_command, sizeof(g.last_command), "%s", command);
     if (g.downloader_done || !g.port.submit) return 0;
     g.downloader_done = done;
     g.downloader_done_user = user;
@@ -323,6 +326,7 @@ static uint32_t provision_retry_delay(uint8_t retry_count)
 
 static int submit_command(const char *command, uint32_t timeout_ms)
 {
+    (void)snprintf(g.last_command, sizeof(g.last_command), "%s", command);
     g.payload_sent = 0U;
     if (g.port.submit &&
         g.port.submit(g.port.context, command, timeout_ms, command_done, 0))
@@ -411,9 +415,13 @@ static void start_provisioning(void)
 
 static void begin_download(void)
 {
+    char command[24];
     if (g.port.mqtt_pause) g.port.mqtt_pause(g.port.context, 1U);
+    g.mqtt_client_index = g.port.mqtt_client_index(g.port.context);
     g.state = ST_MQTT_DISC;
-    (void)submit_command("AT+QMTDISC=0", 10000U);
+    (void)snprintf(command, sizeof(command), "AT+QMTDISC=%u",
+                   (unsigned)g.mqtt_client_index);
+    (void)submit_command(command, 10000U);
 }
 
 static int running_image_crc(uint32_t *result)
@@ -620,7 +628,9 @@ static void command_succeeded(void)
         break;
     case ST_MQTT_DISC:
         g.state = ST_MQTT_CLOSE;
-        (void)submit_command("AT+QMTCLOSE=0", 10000U);
+        (void)snprintf(command, sizeof(command), "AT+QMTCLOSE=%u",
+                       (unsigned)g.mqtt_client_index);
+        (void)submit_command(command, 10000U);
         break;
     case ST_MQTT_CLOSE:
         if (g.seeding) {
@@ -943,6 +953,7 @@ int ABoxBootV2App_Init(const ABoxBootV2AppPort *port,
     ABoxHttpsUfsPort downloader_port;
     ABoxHttpsUfsConfig downloader_config;
     if (!port || !config || !port->submit || !port->register_events ||
+        !port->mqtt_client_index ||
         !port->transfer_buffer ||
         port->transfer_buffer_size < ABOX_BOOT_V2_APP_RAW_CHUNK)
         return 0;

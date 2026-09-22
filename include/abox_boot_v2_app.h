@@ -47,6 +47,7 @@ typedef struct {
     void (*cancel)(void *context);
     void (*register_events)(void *context, ABoxBootV2AtEventFn callback, void *user);
     void (*mqtt_pause)(void *context, uint8_t paused);
+    uint8_t (*mqtt_client_index)(void *context);
     void (*log)(void *context, uint8_t level, const char *message);
     uint8_t *transfer_buffer;
     uint32_t transfer_buffer_size;
