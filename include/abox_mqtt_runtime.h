@@ -27,7 +27,9 @@ typedef enum {
   ABOX_MQTT_RUNTIME_CLOCK,
   ABOX_MQTT_RUNTIME_PREPARE,
   ABOX_MQTT_RUNTIME_BIND,
+  ABOX_MQTT_RUNTIME_PREPARED,
   ABOX_MQTT_RUNTIME_CONNECT,
+  ABOX_MQTT_RUNTIME_CONNECTED,
   ABOX_MQTT_RUNTIME_READY,
   ABOX_MQTT_RUNTIME_FAILED
 } ABoxMqttRuntimeState;
@@ -38,6 +40,7 @@ typedef struct {
   int (*apply_config)(void *, const ABoxMqttConfig *);
   void (*mqtt_task)(void *);
   uint8_t (*mqtt_ready)(void *);
+  uint8_t (*mqtt_connected)(void *);
   uint8_t (*ca_ready)(void *);
   uint8_t (*time_valid)(void *);
   void (*observe_modem_line)(void *, const char *);
@@ -45,7 +48,8 @@ typedef struct {
   void (*state_changed)(void *, ABoxMqttRuntimeState, const char *);
 } ABoxMqttRuntimePort;
 typedef struct {
-  uint32_t owner, command_timeout_ms, tls_timeout_ms, connect_timeout_ms;
+  uint32_t owner, command_timeout_ms, tls_timeout_ms, connect_timeout_ms,
+      subscribe_timeout_ms;
   const char *ca_file;
   uint32_t ca_revision;
   uint8_t plain_client, tls_client, tls_context, tls_profile_id,
@@ -75,6 +79,7 @@ void ABoxMqttRuntime_Poll(ABoxMqttRuntime *, uint32_t);
 int ABoxMqttRuntime_Stage(ABoxMqttRuntime *, const ABoxMqttConfig *);
 int ABoxMqttRuntime_Activate(ABoxMqttRuntime *, uint32_t);
 int ABoxMqttRuntime_Apply(ABoxMqttRuntime *, const ABoxMqttConfig *, uint32_t);
+int ABoxMqttRuntime_Restore(ABoxMqttRuntime *, const ABoxMqttConfig *, uint32_t);
 void ABoxMqttRuntime_OnModemReset(ABoxMqttRuntime *, uint32_t);
 uint8_t ABoxMqttRuntime_IsReady(const ABoxMqttRuntime *);
 uint8_t ABoxMqttRuntime_ActiveClient(const ABoxMqttRuntime *);

@@ -54,7 +54,7 @@ static int start(ABoxMqttRuntime *r, uint32_t now) {
       return 0;
     r->active_tls = 0;
     gate(r, 1);
-    state(r, ABOX_MQTT_RUNTIME_CONNECT, "plain-connect");
+    state(r, ABOX_MQTT_RUNTIME_PREPARED, "plain-prepared");
     return 1;
   }
   state(r, ABOX_MQTT_RUNTIME_WAIT_CA, "wait-ca");
@@ -82,7 +82,7 @@ int ABoxMqttRuntime_Init(ABoxMqttRuntime *r, ABoxEc800At *at,
                          const ABoxMqttConfig *c, uint32_t now) {
   ABoxEc800CommandPort q;
   if (!r || !at || !p || !o || !p->set_paused || !p->set_security_ready ||
-      !p->apply_config || !p->mqtt_task || !p->mqtt_ready || !p->ca_ready ||
+      !p->apply_config || !p->mqtt_task || !p->mqtt_ready || !p->mqtt_connected || !p->ca_ready ||
       !p->time_valid || !o->ca_file || o->plain_client == o->tls_client ||
       o->tls_context >= ABOX_TLS_CONTEXT_CAPACITY || !o->command_timeout_ms ||
       !o->tls_timeout_ms || !o->connect_timeout_ms)
@@ -134,6 +134,17 @@ int ABoxMqttRuntime_Activate(ABoxMqttRuntime *r, uint32_t now) {
 int ABoxMqttRuntime_Apply(ABoxMqttRuntime *r, const ABoxMqttConfig *c,
                           uint32_t now) {
   return ABoxMqttRuntime_Stage(r, c) && ABoxMqttRuntime_Activate(r, now);
+}
+int ABoxMqttRuntime_Restore(ABoxMqttRuntime *r, const ABoxMqttConfig *c,
+                           uint32_t now) {
+  if (!r || !r->initialized) return 0;
+  if (r->state == ABOX_MQTT_RUNTIME_PREPARED ||
+      r->state == ABOX_MQTT_RUNTIME_CONNECT ||
+      r->state == ABOX_MQTT_RUNTIME_CONNECTED) {
+    gate(r, 0);
+    r->state = ABOX_MQTT_RUNTIME_FAILED;
+  }
+  return ABoxMqttRuntime_Apply(r, c, now);
 }
 static void disconnect(ABoxMqttRuntime *r, uint32_t now) {
   char c[32];
@@ -192,11 +203,27 @@ void ABoxMqttRuntime_Poll(ABoxMqttRuntime *r, uint32_t now) {
   }
   if (r->state == ABOX_MQTT_RUNTIME_CONNECT) {
     r->callbacks.mqtt_task(r->callbacks.user);
+    if (r->callbacks.mqtt_connected(r->callbacks.user)) {
+      r->started = now;
+      state(r, ABOX_MQTT_RUNTIME_CONNECTED, "connected");
+    } else if ((uint32_t)(now - r->started) >= r->options.connect_timeout_ms)
+      fail(r, "connect");
+    return;
+  }
+  if (r->state == ABOX_MQTT_RUNTIME_CONNECTED) {
+    r->callbacks.mqtt_task(r->callbacks.user);
     if (r->callbacks.mqtt_ready(r->callbacks.user)) {
       commit_active(r);
       state(r, ABOX_MQTT_RUNTIME_READY, "ready");
-    } else if ((uint32_t)(now - r->started) >= r->options.connect_timeout_ms)
-      fail(r, "connect");
+    } else if ((uint32_t)(now - r->started) >=
+               (r->options.subscribe_timeout_ms ? r->options.subscribe_timeout_ms
+                                                : r->options.connect_timeout_ms))
+      fail(r, "subscribe");
+    return;
+  }
+  if (r->state == ABOX_MQTT_RUNTIME_PREPARED) {
+    r->started = now;
+    state(r, ABOX_MQTT_RUNTIME_CONNECT, "connect");
     return;
   }
   if (r->state == ABOX_MQTT_RUNTIME_WAIT_CA) {
@@ -258,7 +285,7 @@ void ABoxMqttRuntime_Poll(ABoxMqttRuntime *r, uint32_t now) {
     r->active_tls = 1;
     r->started = now;
     gate(r, 1);
-    state(r, ABOX_MQTT_RUNTIME_CONNECT, "connect");
+    state(r, ABOX_MQTT_RUNTIME_PREPARED, "tls-prepared");
   }
 }
 void ABoxMqttRuntime_OnModemReset(ABoxMqttRuntime *r, uint32_t now) {
