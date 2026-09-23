@@ -104,7 +104,8 @@ int ABoxMqttRuntime_Init(ABoxMqttRuntime *r, ABoxEc800At *at,
 }
 int ABoxMqttRuntime_Stage(ABoxMqttRuntime *r, const ABoxMqttConfig *c) {
   if (!r || !r->initialized ||
-      (r->state != ABOX_MQTT_RUNTIME_READY && r->state != ABOX_MQTT_RUNTIME_FAILED) ||
+      (r->state != ABOX_MQTT_RUNTIME_READY && r->state != ABOX_MQTT_RUNTIME_FAILED &&
+       r->state != ABOX_MQTT_RUNTIME_PREPARED) ||
       !config(r, c))
     return 0;
   r->candidate_staged = 1;
@@ -113,11 +114,12 @@ int ABoxMqttRuntime_Stage(ABoxMqttRuntime *r, const ABoxMqttConfig *c) {
 int ABoxMqttRuntime_Activate(ABoxMqttRuntime *r, uint32_t now) {
   char c[32];
   if (!r || !r->initialized ||
-      (r->state != ABOX_MQTT_RUNTIME_READY && r->state != ABOX_MQTT_RUNTIME_FAILED) ||
+      (r->state != ABOX_MQTT_RUNTIME_READY && r->state != ABOX_MQTT_RUNTIME_FAILED &&
+       r->state != ABOX_MQTT_RUNTIME_PREPARED) ||
       !r->candidate_staged)
     return 0;
   r->candidate_staged = 0;
-  r->recovering = (uint8_t)(r->state == ABOX_MQTT_RUNTIME_FAILED);
+  r->recovering = (uint8_t)(r->state != ABOX_MQTT_RUNTIME_READY);
   if (r->callbacks.before_network_change)
     r->callbacks.before_network_change(r->callbacks.user);
   gate(r, 0);
