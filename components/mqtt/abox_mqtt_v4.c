@@ -37,6 +37,23 @@ static const ABoxMqttProfileDescriptor vehicle_chassis_profile = {
     sizeof(vehicle_chassis_reports) / sizeof(vehicle_chassis_reports[0])
 };
 
+static const ABoxMqttCommandDescriptor sweeper_vehicle_commands[] = {
+    {"power_on", "sweeper_vehicle", ABOX_MQTT_COMMAND_DISCRETE_ACTION},
+    {"power_off", "sweeper_vehicle", ABOX_MQTT_COMMAND_SAFETY_STOP}
+};
+
+static const ABoxMqttReportDescriptor sweeper_vehicle_reports[] = {
+    {"sweeper_status", "sweeper_vehicle", "state"}
+};
+
+static const ABoxMqttProfileDescriptor sweeper_vehicle_profile = {
+    "sweeper_vehicle", "1.0",
+    sweeper_vehicle_commands,
+    sizeof(sweeper_vehicle_commands) / sizeof(sweeper_vehicle_commands[0]),
+    sweeper_vehicle_reports,
+    sizeof(sweeper_vehicle_reports) / sizeof(sweeper_vehicle_reports[0])
+};
+
 const ABoxMqttProfileDescriptor *ABoxMqttV4_LockerProfile(void)
 {
     return &locker_profile;
@@ -45,6 +62,11 @@ const ABoxMqttProfileDescriptor *ABoxMqttV4_LockerProfile(void)
 const ABoxMqttProfileDescriptor *ABoxMqttV4_VehicleChassisProfile(void)
 {
     return &vehicle_chassis_profile;
+}
+
+const ABoxMqttProfileDescriptor *ABoxMqttV4_SweeperVehicleProfile(void)
+{
+    return &sweeper_vehicle_profile;
 }
 
 const ABoxMqttCommandDescriptor *ABoxMqttV4_FindCommand(

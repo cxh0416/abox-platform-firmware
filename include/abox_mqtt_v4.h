@@ -38,6 +38,7 @@ typedef struct {
 
 const ABoxMqttProfileDescriptor *ABoxMqttV4_LockerProfile(void);
 const ABoxMqttProfileDescriptor *ABoxMqttV4_VehicleChassisProfile(void);
+const ABoxMqttProfileDescriptor *ABoxMqttV4_SweeperVehicleProfile(void);
 const ABoxMqttCommandDescriptor *ABoxMqttV4_FindCommand(
     const ABoxMqttProfileDescriptor *profile, const char *name);
 const ABoxMqttReportDescriptor *ABoxMqttV4_FindReport(

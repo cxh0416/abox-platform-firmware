@@ -27,6 +27,15 @@ int main(void)
     assert(ABoxMqttV4_FindCommand(profile, "chassis_control")->classification ==
            ABOX_MQTT_COMMAND_CONTINUOUS_SESSION);
     assert(strcmp(ABoxMqttV4_FindReport(profile, "chassis_status")->report_type, "state") == 0);
+    profile = ABoxMqttV4_SweeperVehicleProfile();
+    assert(profile != 0);
+    assert(strcmp(profile->name, "sweeper_vehicle") == 0);
+    assert(strcmp(profile->version, "1.0") == 0);
+    assert(ABoxMqttV4_FindCommand(profile, "power_on")->classification ==
+           ABOX_MQTT_COMMAND_DISCRETE_ACTION);
+    assert(ABoxMqttV4_FindCommand(profile, "power_off")->classification ==
+           ABOX_MQTT_COMMAND_SAFETY_STOP);
+    assert(strcmp(ABoxMqttV4_FindReport(profile, "sweeper_status")->report_type, "state") == 0);
     assert(ABoxMqttV4_SubscriptionQos("/zxwl/abox/device/request") == 1U);
     assert(ABoxMqttV4_ReportQos("state") == 1U);
     assert(ABoxMqttV4_ReportQos("event") == 1U);
