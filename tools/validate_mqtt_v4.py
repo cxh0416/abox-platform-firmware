@@ -117,38 +117,54 @@ def normalize_vector(vector):
 
 def validate_registry(registry) -> list[str]:
     failures = []
-    names = set()
-    matchers = set()
+    names = {}
+    matchers = {}
+    command_usages = {}
 
-    def register_operation(kind: str, operation) -> None:
+    def register_operation(kind: str, operation, profile_name: str, is_command: bool) -> None:
         name = operation.get("name")
         matcher = operation.get("operationMatcher", {})
         matcher_key = (matcher.get("field"), matcher.get("equals"))
         if not isinstance(name, str) or len(name) > 64 or not SNAKE_CASE.fullmatch(name):
             failures.append(f"{kind}: invalid operation name {name!r}")
-        elif name in names:
-            failures.append(f"{kind}: duplicate operation name {name}")
-        else:
-            names.add(name)
         if matcher.get("equals") != name:
             failures.append(f"{kind} {name}: matcher value must equal the operation name")
-        if matcher_key in matchers:
-            failures.append(f"{kind} {name}: conflicting operationMatcher {matcher_key}")
-        else:
-            matchers.add(matcher_key)
-        for required in ("ownerProfile", "introducedVersion", "semanticDescription"):
+        for required in ("introducedVersion", "semanticDescription"):
             if not operation.get(required):
                 failures.append(f"{kind} {name}: {required} is required")
         if not PROFILE_VERSION.fullmatch(operation.get("introducedVersion", "")):
             failures.append(f"{kind} {name}: introducedVersion must be MAJOR.MINOR")
+        if is_command:
+            applicable = operation.get("applicableProfiles")
+            if (not isinstance(applicable, list) or not applicable
+                    or any(not isinstance(item, str) for item in applicable)
+                    or len(applicable) != len(set(applicable))):
+                failures.append(f"{kind} {name}: applicableProfiles must be a nonempty unique list")
+            elif profile_name not in applicable:
+                failures.append(f"{kind} {name}: applicableProfiles excludes {profile_name}")
+            command_usages.setdefault(name, set()).add(profile_name)
+        elif operation.get("ownerProfile") != profile_name:
+            failures.append(f"{kind} {name}: ownerProfile mismatch")
+
+        definition = {key: value for key, value in operation.items() if key != "ownerProfile"}
+        previous = names.get(name)
+        if previous is not None:
+            previous_kind, previous_definition = previous
+            if not is_command or previous_kind != "command" or definition != previous_definition:
+                failures.append(f"{kind}: conflicting operation name {name}")
+        else:
+            names[name] = ("command" if is_command else "report", definition)
+        previous_matcher = matchers.get(matcher_key)
+        if previous_matcher is not None and previous_matcher != name:
+            failures.append(f"{kind} {name}: conflicting operationMatcher {matcher_key}")
+        else:
+            matchers[matcher_key] = name
 
     if registry.get("protocolVersion") != "4.0":
         failures.append("registry protocolVersion must be 4.0")
 
     for command in registry.get("core", {}).get("commands", []):
-        if command.get("ownerProfile") != "core":
-            failures.append(f"core command {command.get('name')}: ownerProfile must be core")
-        register_operation("core command", command)
+        register_operation("core command", command, "core", True)
 
     profile_names = set()
     for profile in registry.get("profiles", []):
@@ -173,13 +189,14 @@ def validate_registry(registry) -> list[str]:
         if not profile.get("contract"):
             failures.append(f"profile {name}: contract reference is required")
         for command in profile.get("commands", []):
-            if command.get("ownerProfile") != name:
-                failures.append(f"profile {name} command {command.get('name')}: ownerProfile mismatch")
-            register_operation(f"profile {name} command", command)
+            register_operation(f"profile {name} command", command, name, True)
         for report in profile.get("reports", []):
-            if report.get("ownerProfile") != name:
-                failures.append(f"profile {name} report {report.get('name')}: ownerProfile mismatch")
-            register_operation(f"profile {name} report", report)
+            register_operation(f"profile {name} report", report, name, False)
+
+    for name, usages in command_usages.items():
+        applicable = names[name][1].get("applicableProfiles")
+        if isinstance(applicable, list) and set(applicable) != usages:
+            failures.append(f"command {name}: applicableProfiles does not match registered profiles")
 
     if not registry.get("profiles"):
         failures.append("registry must contain at least one frozen profile")

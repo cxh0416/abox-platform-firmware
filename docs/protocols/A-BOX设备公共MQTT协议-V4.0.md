@@ -1526,12 +1526,16 @@ Profile Registry
 
 V4 公共业务命名空间中：
 
-- `command` 必须全局唯一；
+- 每个 `command` 名称只登记一项全局能力语义；多个 Profile 可以引用同一项；
 - `reportName` 必须全局唯一；
 - 不允许不同 Profile 注册同名但不同语义的 `command`；
 - 不允许不同 Profile 注册同名但不同语义的 `reportName`；
 - `sync_state` 等 Core 定义的命令属于保留名称，任何 Profile 不得覆盖或重新解释；
 - 同一 A-BOX 上不得存在路由含义冲突的注册项。
+
+`command` 名表示能力，不表示具体输出器件、输出数量或内部实现对象。引用同名命令的各 Profile 可以定义各自的目标状态、成功边界、响应结果和完整状态，但不得改变该命令的全局能力语义。例如 `power_on` / `power_off` 表示请求设备电源控制输出进入开启 / 关闭目标状态；它们不保证外部负载已实际通断，也不授予运动控制权限。只有产品独有的能力才增加产品前缀命令。
+
+同一设备若声明多个引用同名命令的 Profile，必须通过 `command + params` 唯一确定目标操作；不能唯一确定时不得同时启用这些 Profile。
 
 由于普通业务请求中不携带 Profile 标识，A-BOX 必须能够仅依据：
 
@@ -1547,9 +1551,9 @@ Command Registry 至少记录：
 
 ```text
 command
-ownerProfile
 introducedVersion
 semanticDescription
+applicableProfiles
 ```
 
 ReportName Registry 至少记录：

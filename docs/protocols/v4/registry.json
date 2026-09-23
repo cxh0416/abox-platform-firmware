@@ -5,7 +5,7 @@
     "commands": [
       {
         "name": "sync_state",
-        "ownerProfile": "core",
+        "applicableProfiles": ["core"],
         "introducedVersion": "4.0",
         "semanticDescription": "Request complete state reports for every currently enabled stateful profile.",
         "classification": "CORE",
@@ -22,7 +22,7 @@
       "commands": [
         {
           "name": "open_locker",
-          "ownerProfile": "locker",
+          "applicableProfiles": ["locker"],
           "introducedVersion": "1.0",
           "semanticDescription": "Open the requested locker compartments and return the final confirmed result.",
           "classification": "DISCRETE_ACTION",
@@ -30,7 +30,7 @@
         },
         {
           "name": "check_locker_status",
-          "ownerProfile": "locker",
+          "applicableProfiles": ["locker"],
           "introducedVersion": "1.0",
           "semanticDescription": "Read the current public state of the requested locker compartments.",
           "classification": "QUERY",
@@ -56,23 +56,23 @@
       "commands": [
         {
           "name": "power_on",
-          "ownerProfile": "vehicle_chassis",
+          "applicableProfiles": ["vehicle_chassis"],
           "introducedVersion": "1.0",
-          "semanticDescription": "Latch the chassis power output on without claiming external power feedback.",
+          "semanticDescription": "Request device power control outputs on without claiming external load feedback or motion permission.",
           "classification": "DISCRETE_ACTION",
           "operationMatcher": {"field": "data.command", "equals": "power_on"}
         },
         {
           "name": "power_off",
-          "ownerProfile": "vehicle_chassis",
+          "applicableProfiles": ["vehicle_chassis"],
           "introducedVersion": "1.0",
-          "semanticDescription": "Latch the chassis power output off and revoke the motion session.",
+          "semanticDescription": "Request device power control outputs off without claiming external load feedback or motion permission.",
           "classification": "SAFETY_STOP",
           "operationMatcher": {"field": "data.command", "equals": "power_off"}
         },
         {
           "name": "chassis_control",
-          "ownerProfile": "vehicle_chassis",
+          "applicableProfiles": ["vehicle_chassis"],
           "introducedVersion": "1.0",
           "semanticDescription": "Acquire, renew, or safely stop the leased chassis motion session.",
           "classification": "CONTINUOUS_SESSION",
