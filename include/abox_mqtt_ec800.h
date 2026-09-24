@@ -53,6 +53,7 @@ typedef struct {
     void (*message)(void *, const uint8_t *, size_t, const uint8_t *, size_t);
     void (*state_changed)(void *, ABoxMqttEc800State);
     void (*publish_event)(void *, uint64_t, ABoxMqttEc800PublishEvent);
+    void (*modem_reset)(void *);
 } ABoxMqttEc800Callbacks;
 
 typedef struct {

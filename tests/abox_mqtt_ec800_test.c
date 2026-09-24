@@ -17,7 +17,7 @@ typedef struct {
     char command[256];
     uint8_t sent_payload[64];
     size_t sent_length;
-    unsigned messages, submitted, confirmed, failed;
+    unsigned messages, submitted, confirmed, failed, resets;
     uint64_t last_operation;
 } Fixture;
 
@@ -58,6 +58,8 @@ static void published(void *user, uint64_t operation,
     if (event == ABOX_MQTT_EC800_PUBLISH_CONFIRMED) ++f->confirmed;
     if (event == ABOX_MQTT_EC800_PUBLISH_FAILED) ++f->failed;
 }
+static void modem_reset(void *user)
+{ ++((Fixture *)user)->resets; }
 static void feed(Fixture *f, const char *line)
 {
     ABoxEc800At_Feed(&f->at, (const uint8_t *)line, (uint16_t)strlen(line));
@@ -133,6 +135,7 @@ int main(void)
     buffers.publish_payload = outgoing; buffers.publish_capacity = sizeof(outgoing);
     callbacks.user = &f; callbacks.message = incoming;
     callbacks.publish_event = published;
+    callbacks.modem_reset = modem_reset;
     assert(ABoxMqttEc800_Init(&f.mqtt, &f.at, &config, &buffers, &callbacks, 0U));
     ABoxMqttEc800_SetSecurityReady(&f.mqtt, 1U);
     assert(ABoxMqttEc800_Start(&f.mqtt, 0U));
@@ -190,6 +193,10 @@ int main(void)
     assert(counters.publish_timeout == 1U);
     ABoxEc800At_Reset(&f.at);
     ABoxMqttEc800_OnModemReset(&f.mqtt, f.now);
+    connect_session(&f);
+    feed(&f, "RDY\r\n");
+    assert(f.resets == 1U);
+    assert(ABoxMqttEc800_GetState(&f.mqtt) == ABOX_MQTT_EC800_CONFIGURING);
     connect_session(&f);
     memset(&f, 0, sizeof(f));
     assert(ABoxEc800At_Init(&f.at, &port));

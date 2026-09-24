@@ -109,7 +109,11 @@ static void event(ABoxEc800Event kind, const uint8_t *bytes,
     memcpy(line, bytes, length);
     line[length] = '\0';
     if (!strcmp(line, "RDY")) {
-        change(m, ABOX_MQTT_EC800_BLOCKED, 0U);
+        uint32_t now = m->at->port.tick_ms(m->at->port.context);
+        ABoxEc800At_Reset(m->at);
+        if (m->callbacks.modem_reset)
+            m->callbacks.modem_reset(m->callbacks.user);
+        ABoxMqttEc800_OnModemReset(m, now);
         return;
     }
     if (!strncmp(line, "+CEREG:", 7U)) {
