@@ -45,6 +45,8 @@ int main(void)
     const ABoxMqttConfig next = {"next.example", 1884U, "u", "p", 0U, 0U};
     const uint8_t disc[] = "OK\r\n+QMTDISC: 0,0\r\n";
     const uint8_t close[] = "OK\r\n+QMTCLOSE: 0,0\r\n";
+    const uint8_t disc_tls[] = "OK\r\n+QMTDISC: 1,0\r\n";
+    const uint8_t close_tls[] = "OK\r\n+QMTCLOSE: 1,0\r\n";
 
     at_port.context = &f; at_port.tick_ms = tick; at_port.write = write_at;
     assert(ABoxEc800At_Init(&at, &at_port));
@@ -55,6 +57,7 @@ int main(void)
     options.owner = 20U; options.command_timeout_ms = 5000U;
     options.tls_timeout_ms = 30000U; options.connect_timeout_ms = 60000U;
     options.subscribe_timeout_ms = 60000U; options.ca_file = "UFS:ca.pem";
+    options.ca_revision = 1U;
     options.plain_client = 0U; options.tls_client = 1U;
     options.tls_context = 2U; options.supported_tls_context_mask = 4U;
     assert(ABoxMqttRuntime_Init(&runtime, &at, &port, &options, &first, 0U));
@@ -101,5 +104,52 @@ int main(void)
     assert(!ABoxMqttRuntime_Stage(&runtime, &first));
     assert(ABoxMqttRuntime_RecoveryComplete(&runtime));
     assert(ABoxMqttRuntime_Stage(&runtime, &first));
+
+    {
+        Fixture tls_fixture = {0};
+        ABoxEc800At tls_at;
+        ABoxMqttRuntime tls_runtime;
+        const ABoxMqttConfig tls_config = {"secure.example", 8883U, "u", "p", 1U, 0U};
+        uint32_t now;
+        at_port.context = &tls_fixture;
+        port.user = &tls_fixture;
+        assert(ABoxEc800At_Init(&tls_at, &at_port));
+        assert(ABoxMqttRuntime_Init(&tls_runtime, &tls_at, &port, &options,
+                                    &tls_config, 0U));
+        for (now = 1U; now < 80U && !ABoxMqttRuntime_IsReady(&tls_runtime); ++now) {
+            tls_fixture.now = now;
+            if (tls_runtime.state == ABOX_MQTT_RUNTIME_CONNECT ||
+                tls_runtime.state == ABOX_MQTT_RUNTIME_CONNECTED) {
+                tls_fixture.connected = tls_fixture.ready = 1U;
+            }
+            ABoxMqttRuntime_Poll(&tls_runtime, now);
+            ABoxEc800At_Task(&tls_at);
+            if (tls_at.active_valid) {
+                const uint8_t ok[] = "OK\r\n";
+                ABoxEc800At_Feed(&tls_at, ok, (uint16_t)(sizeof(ok) - 1U));
+            }
+        }
+        assert(ABoxMqttRuntime_IsReady(&tls_runtime));
+        assert(ABoxMqttRuntime_IsTlsActive(&tls_runtime));
+        assert(tls_runtime.lease.generation != 0U);
+        assert(ABoxMqttRuntime_StopFirst(&tls_runtime, now++) == 0);
+        for (; now < 120U && ABoxMqttRuntime_StopFirst(&tls_runtime, now) == 0; ++now) {
+            tls_fixture.now = now;
+            ABoxMqttRuntime_Poll(&tls_runtime, now);
+            ABoxEc800At_Task(&tls_at);
+            if (tls_at.active_valid) {
+                const uint8_t ok[] = "OK\r\n";
+                if (strstr(tls_fixture.last_command, "AT+QMTDISC=1"))
+                    ABoxEc800At_Feed(&tls_at, disc_tls, (uint16_t)(sizeof(disc_tls) - 1U));
+                else if (strstr(tls_fixture.last_command, "AT+QMTCLOSE=1"))
+                    ABoxEc800At_Feed(&tls_at, close_tls, (uint16_t)(sizeof(close_tls) - 1U));
+                else
+                    ABoxEc800At_Feed(&tls_at, ok, (uint16_t)(sizeof(ok) - 1U));
+            }
+        }
+        assert(ABoxMqttRuntime_StopFirst(&tls_runtime, now) == 1);
+        assert(!ABoxMqttRuntime_IsTlsActive(&tls_runtime));
+        assert(tls_runtime.lease.generation == 0U);
+    }
     return 0;
 }

@@ -99,6 +99,7 @@ uint8_t ABoxMqttRuntime_ActiveClient(const ABoxMqttRuntime *);
 uint8_t ABoxMqttRuntime_ActiveContext(const ABoxMqttRuntime *);
 const ABoxMqttConfig *ABoxMqttRuntime_ActiveConfig(const ABoxMqttRuntime *);
 const ABoxMqttConfig *ABoxMqttRuntime_StagedConfig(const ABoxMqttRuntime *);
+const ABoxMqttConfig *ABoxMqttRuntime_RequestedConfig(const ABoxMqttRuntime *);
 #ifdef __cplusplus
 }
 #endif

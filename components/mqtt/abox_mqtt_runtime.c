@@ -449,3 +449,6 @@ const ABoxMqttConfig *ABoxMqttRuntime_ActiveConfig(const ABoxMqttRuntime *r) {
 const ABoxMqttConfig *ABoxMqttRuntime_StagedConfig(const ABoxMqttRuntime *r) {
   return r && r->candidate_staged ? &r->requested : 0;
 }
+const ABoxMqttConfig *ABoxMqttRuntime_RequestedConfig(const ABoxMqttRuntime *r) {
+  return r && r->requested.host ? &r->requested : 0;
+}
