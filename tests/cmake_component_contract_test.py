@@ -36,9 +36,9 @@ def configure(name: str, arguments: str, success: bool, diagnostic: str = "",
             built = subprocess.run(["cmake", "--build", str(source / "build")],
                                    capture_output=True, text=True)
             assert built.returncode == 0, f"{name} build: {built.stdout}{built.stderr}"
-            assert (source / "build/platform-build/libabox_mqtt_v4.a").exists()
-            assert not (source / "build/platform-build/libabox_ota.a").exists()
-            assert not (source / "build/platform-build/libabox_mqtt_ec800_rx.a").exists()
+            assert (source / "build/platform-build/components/mqtt/libabox_mqtt_v4.a").exists()
+            assert not (source / "build/platform-build/components/legacy/ota/libabox_ota.a").exists()
+            assert not (source / "build/platform-build/components/mqtt/libabox_mqtt_ec800_rx.a").exists()
 
 
 def main() -> None:

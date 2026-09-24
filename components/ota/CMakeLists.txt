@@ -1,0 +1,3 @@
+add_library(abox_https_ufs_downloader STATIC src/abox_https_ufs_downloader.c)
+add_library(abox::https_ufs_downloader ALIAS abox_https_ufs_downloader)
+target_include_directories(abox_https_ufs_downloader PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)

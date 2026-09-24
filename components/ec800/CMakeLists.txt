@@ -1,0 +1,11 @@
+add_library(abox_ec800 STATIC
+    src/abox_ec800_at.c src/abox_ec800_at_legacy.c src/abox_ec800_rx.c)
+add_library(abox::ec800 ALIAS abox_ec800)
+target_include_directories(abox_ec800 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+foreach(module ec800_ufs ec800_tls ec800_command_port)
+    add_library(abox_${module} STATIC src/abox_${module}.c)
+    add_library(abox::${module} ALIAS abox_${module})
+    target_include_directories(abox_${module} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+endforeach()
+target_link_libraries(abox_ec800_tls PUBLIC abox::ec800_ufs)
+target_link_libraries(abox_ec800_command_port PUBLIC abox::ec800)

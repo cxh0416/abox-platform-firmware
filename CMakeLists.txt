@@ -1,217 +1,25 @@
 cmake_minimum_required(VERSION 3.22)
-
 project(ABoxPlatform VERSION 0.3.0 LANGUAGES C)
-
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
-
-add_library(abox_core STATIC
-    src/abox_platform_config.c
-    src/abox_platform_port.c
-)
-add_library(abox::core ALIAS abox_core)
-
-target_include_directories(abox_core
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
-target_compile_definitions(abox_core
-    PUBLIC
-        ABOX_PLATFORM_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-        ABOX_PLATFORM_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-        ABOX_PLATFORM_VERSION_PATCH=${PROJECT_VERSION_PATCH}
-)
-
-add_library(abox_cjson STATIC
-    components/cjson/cJSON.c
-)
-add_library(abox::cjson ALIAS abox_cjson)
-target_include_directories(abox_cjson PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/components/cjson)
-
-add_library(abox_ota STATIC
-    components/ota/ota_flash.c
-    components/ota/ota_ec_at.c
-)
-add_library(abox::ota ALIAS abox_ota)
-target_include_directories(abox_ota PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(abox_ota PUBLIC abox::core)
-
-add_library(abox_ec800 STATIC
-    components/ec800/abox_ec800_at.c
-    components/ec800/abox_ec800_at_legacy.c
-    components/ec800/abox_ec800_rx.c
-)
-add_library(abox::ec800 ALIAS abox_ec800)
-target_include_directories(abox_ec800 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-
-add_library(abox_mqtt_v4 STATIC
-    components/mqtt/abox_mqtt_v4.c
-)
-add_library(abox::mqtt_v4 ALIAS abox_mqtt_v4)
-target_include_directories(abox_mqtt_v4 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-
-add_library(abox_mqtt_ec800_rx STATIC components/mqtt/abox_mqtt_ec800_rx.c)
-add_library(abox::mqtt_ec800_rx ALIAS abox_mqtt_ec800_rx)
-target_include_directories(abox_mqtt_ec800_rx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-add_library(abox_mqtt_ec800 STATIC components/mqtt/abox_mqtt_ec800.c)
-add_library(abox::mqtt_ec800 ALIAS abox_mqtt_ec800)
-target_include_directories(abox_mqtt_ec800 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(abox_mqtt_ec800 PUBLIC abox::ec800 abox::mqtt_ec800_rx)
-
-add_library(abox_https_ufs_downloader STATIC
-    components/ota/abox_https_ufs_downloader.c
-)
-add_library(abox::https_ufs_downloader ALIAS abox_https_ufs_downloader)
-target_include_directories(abox_https_ufs_downloader PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-
-add_library(abox_ec_power STATIC
-    components/ec_power/ec_power.c
-)
-add_library(abox::ec_power ALIAS abox_ec_power)
-target_include_directories(abox_ec_power PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(abox_ec_power PUBLIC abox::core)
-
-add_library(abox_boot INTERFACE)
-add_library(abox::boot ALIAS abox_boot)
-target_link_libraries(abox_boot INTERFACE abox::core)
-
-add_library(abox_boot_v2_common STATIC
-    components/boot_v2/abox_boot_v2_state.c
-    components/boot_v2/abox_boot_v2_descriptor.c
-    components/boot_v2/abox_boot_v2_image.c
-    components/boot_v2/abox_boot_v2_fault.c
-)
-add_library(abox::boot_v2_common ALIAS abox_boot_v2_common)
-target_include_directories(abox_boot_v2_common PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(abox_boot_v2_common PUBLIC abox::core)
-
-add_library(abox_boot_v2_app STATIC components/boot_v2/abox_boot_v2_app.c)
-add_library(abox::boot_v2_app ALIAS abox_boot_v2_app)
-target_include_directories(abox_boot_v2_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(abox_boot_v2_app PUBLIC abox::boot_v2_common abox::https_ufs_downloader)
-
-add_library(abox_boot_v2_boot STATIC components/boot_v2/abox_boot_v2_boot.c)
-add_library(abox::boot_v2_boot ALIAS abox_boot_v2_boot)
-target_include_directories(abox_boot_v2_boot PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(abox_boot_v2_boot PUBLIC abox::boot_v2_common abox::core)
-
-add_library(abox_port_baremetal INTERFACE)
-add_library(abox::port_baremetal ALIAS abox_port_baremetal)
-target_link_libraries(abox_port_baremetal INTERFACE abox::core)
-target_compile_definitions(abox_port_baremetal INTERFACE ABOX_PLATFORM_SCHEDULER_BAREMETAL=1)
-
-add_library(abox_port_freertos INTERFACE)
-add_library(abox::port_freertos ALIAS abox_port_freertos)
-target_link_libraries(abox_port_freertos INTERFACE abox::core)
-target_compile_definitions(abox_port_freertos INTERFACE ABOX_PLATFORM_SCHEDULER_FREERTOS=1)
-
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ABoxPlatform.cmake)
-
-include(CTest)
-
-# Opt-in public foundations: no automatic product/OTA attachment.
-foreach(module ec800_ufs ec800_tls mqtt_tls mqtt_runtime mqtt_trial)
-    if(module MATCHES "^ec800")
-        set(module_dir ec800)
-    else()
-        set(module_dir mqtt)
-    endif()
-    add_library(abox_${module} STATIC components/${module_dir}/abox_${module}.c)
-    add_library(abox::${module} ALIAS abox_${module})
-    target_include_directories(abox_${module} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+foreach(module core cjson ec800 ec_power mqtt enrollment ota boot_v2 legacy/ota)
+    add_subdirectory(components/${module})
 endforeach()
-target_link_libraries(abox_ec800_tls PUBLIC abox::ec800_ufs)
-target_link_libraries(abox_mqtt_tls PUBLIC abox::ec800_tls)
-add_library(abox_ec800_command_port STATIC components/ec800/abox_ec800_command_port.c)
-add_library(abox::ec800_command_port ALIAS abox_ec800_command_port)
-target_link_libraries(abox_ec800_command_port PUBLIC abox::ec800)
-target_link_libraries(abox_mqtt_runtime PUBLIC abox::mqtt_tls abox::ec800_command_port)
-
-add_library(abox_enrollment STATIC components/enrollment/abox_enrollment.c)
-add_library(abox::enrollment ALIAS abox_enrollment)
-target_include_directories(abox_enrollment PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(abox_enrollment PUBLIC abox::cjson)
-add_library(abox_enrollment_ec800_http STATIC components/enrollment/abox_enrollment_ec800_http.c)
-add_library(abox::enrollment_ec800_http ALIAS abox_enrollment_ec800_http)
-target_include_directories(abox_enrollment_ec800_http PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(abox_enrollment_ec800_http PUBLIC abox::ec800)
-
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ABoxPlatform.cmake)
+include(CTest)
 if(BUILD_TESTING AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    find_package(Python3 COMPONENTS Interpreter REQUIRED)
-    add_test(NAME abox_component_contract_test
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake_component_contract_test.py)
-    add_executable(abox_enrollment_test tests/abox_enrollment_test.c)
-    target_link_libraries(abox_enrollment_test PRIVATE abox::enrollment)
-    add_test(NAME abox_enrollment_test COMMAND abox_enrollment_test)
-    add_executable(abox_enrollment_ec800_http_test tests/abox_enrollment_ec800_http_test.c)
-    target_link_libraries(abox_enrollment_ec800_http_test PRIVATE abox::enrollment_ec800_http)
-    add_test(NAME abox_enrollment_ec800_http_test COMMAND abox_enrollment_ec800_http_test)
-    foreach(module ec800_ufs ec800_tls mqtt_tls mqtt_trial ec800_command_port)
-        add_executable(abox_${module}_test tests/abox_${module}_test.c)
-        target_link_libraries(abox_${module}_test PRIVATE abox::${module})
-        add_test(NAME abox_${module}_test COMMAND abox_${module}_test)
-    endforeach()
-    add_executable(abox_platform_config_test tests/abox_platform_config_test.c)
-    target_link_libraries(abox_platform_config_test PRIVATE abox::core)
-    add_test(NAME abox_platform_config_test COMMAND abox_platform_config_test)
-
-    add_executable(abox_ota_flash_test tests/ota_flash_test.c)
-    target_link_libraries(abox_ota_flash_test PRIVATE abox::ota)
-    add_test(NAME abox_ota_flash_test COMMAND abox_ota_flash_test)
-
-    add_executable(abox_ota_ec_at_test tests/ota_ec_at_test.c)
-    target_link_libraries(abox_ota_ec_at_test PRIVATE abox::ota)
-    add_test(NAME abox_ota_ec_at_test COMMAND abox_ota_ec_at_test)
-
-    add_executable(abox_ec800_test tests/abox_ec800_test.c)
-    target_link_libraries(abox_ec800_test PRIVATE abox::ec800)
-    add_test(NAME abox_ec800_test COMMAND abox_ec800_test)
-
-    add_executable(abox_mqtt_v4_contract_test tests/mqtt_v4_contract_test.c)
-    target_link_libraries(abox_mqtt_v4_contract_test PRIVATE abox::mqtt_v4)
-    add_test(NAME abox_mqtt_v4_contract_test COMMAND abox_mqtt_v4_contract_test)
-
-    add_executable(abox_mqtt_runtime_test tests/abox_mqtt_runtime_test.c)
-    target_link_libraries(abox_mqtt_runtime_test PRIVATE abox::mqtt_runtime)
-    add_test(NAME abox_mqtt_runtime_test COMMAND abox_mqtt_runtime_test)
-
-    add_executable(abox_mqtt_ec800_rx_test tests/abox_mqtt_ec800_rx_test.c)
-    target_link_libraries(abox_mqtt_ec800_rx_test PRIVATE abox::mqtt_ec800_rx)
-    add_test(NAME abox_mqtt_ec800_rx_test COMMAND abox_mqtt_ec800_rx_test)
-    add_executable(abox_mqtt_ec800_test tests/abox_mqtt_ec800_test.c)
-    target_link_libraries(abox_mqtt_ec800_test PRIVATE abox::mqtt_ec800)
-    add_test(NAME abox_mqtt_ec800_test COMMAND abox_mqtt_ec800_test)
-    add_executable(abox_ec800_mqtt_rx_route_test tests/abox_ec800_mqtt_rx_route_test.c)
-    target_link_libraries(abox_ec800_mqtt_rx_route_test PRIVATE abox::ec800 abox::mqtt_ec800_rx)
-    add_test(NAME abox_ec800_mqtt_rx_route_test COMMAND abox_ec800_mqtt_rx_route_test)
-
-    add_executable(abox_https_ufs_downloader_test tests/abox_https_ufs_downloader_test.c)
-    target_link_libraries(abox_https_ufs_downloader_test PRIVATE abox::https_ufs_downloader)
-    add_test(NAME abox_https_ufs_downloader_test COMMAND abox_https_ufs_downloader_test)
-
-    add_executable(abox_ec_power_test tests/ec_power_test.c)
-    target_link_libraries(abox_ec_power_test PRIVATE abox::ec_power)
-    add_test(NAME abox_ec_power_test COMMAND abox_ec_power_test)
-
-    add_executable(abox_boot_v2_test tests/boot_v2_test.c)
-    target_link_libraries(abox_boot_v2_test PRIVATE abox::boot_v2_boot)
-    add_test(NAME abox_boot_v2_test COMMAND abox_boot_v2_test)
-
-    add_executable(abox_boot_v2_app_test tests/boot_v2_app_test.c)
-    target_link_libraries(abox_boot_v2_app_test PRIVATE abox::boot_v2_app)
-    add_test(NAME abox_boot_v2_app_test COMMAND abox_boot_v2_app_test)
+    add_subdirectory(tests)
 endif()
-
-# A product only builds the components it links through its explicit list.
-# Standalone Platform builds keep all libraries available for host tests.
+# Product builds only include libraries explicitly linked by the product.
 if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    get_property(abox_targets DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" PROPERTY BUILDSYSTEM_TARGETS)
-    foreach(abox_target IN LISTS abox_targets)
-        get_target_property(abox_type ${abox_target} TYPE)
-        if(abox_type STREQUAL "STATIC_LIBRARY")
-            set_property(TARGET ${abox_target} PROPERTY EXCLUDE_FROM_ALL TRUE)
-        endif()
+    foreach(abox_target IN ITEMS
+            abox_core abox_cjson abox_ec800 abox_ec800_ufs abox_ec800_tls
+            abox_ec800_command_port abox_ec_power abox_mqtt_v4
+            abox_mqtt_ec800_rx abox_mqtt_ec800 abox_mqtt_tls
+            abox_mqtt_runtime abox_mqtt_trial abox_enrollment
+            abox_enrollment_ec800_http abox_https_ufs_downloader
+            abox_boot_v2_common abox_boot_v2_app abox_boot_v2_boot abox_ota)
+        set_property(TARGET ${abox_target} PROPERTY EXCLUDE_FROM_ALL TRUE)
     endforeach()
 endif()

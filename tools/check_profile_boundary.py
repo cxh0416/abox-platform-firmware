@@ -15,7 +15,7 @@ def main() -> int:
         for path in sys.argv[1:]
     }
     files = [root / "CMakeLists.txt", *root.glob("cmake/**/*.cmake"),
-             *root.glob("components/**/*.c"), *root.glob("include/**/*.h"),
+             *root.glob("components/**/*.c"), *root.glob("components/**/*.h"),
              root / "tools/validate_mqtt_v4.py"]
     failures = []
     for path in files:
