@@ -121,6 +121,11 @@ int ABoxMqttEc800Rx_IsLocked(const ABoxMqttEc800Rx *rx)
     return rx && rx->state == RX_LOCKED;
 }
 
+int ABoxMqttEc800Rx_IsCollecting(const ABoxMqttEc800Rx *rx)
+{
+    return rx && (rx->state != RX_SEARCH || rx->prefix_length != 0U);
+}
+
 void ABoxMqttEc800Rx_Feed(ABoxMqttEc800Rx *rx, const uint8_t *bytes,
                           size_t length, uint32_t now_ms)
 {

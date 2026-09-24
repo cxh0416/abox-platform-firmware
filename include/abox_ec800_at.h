@@ -46,6 +46,18 @@ typedef ABoxEc800Owner (*ABoxEc800RouteFn)(void *context,
                                            uint16_t length,
                                            ABoxEc800Owner active_owner);
 
+/* Optional receive demultiplexer. Feed only complete MQTT URC bytes through
+ * this port; OTA RAW ownership takes precedence. A locked parser quarantines
+ * AT until the physical modem and both parsers are reset. */
+typedef struct {
+    void *context;
+    void (*feed)(void *context, const uint8_t *data, uint16_t length,
+                 uint32_t now_ms);
+    void (*poll)(void *context, uint32_t now_ms);
+    int (*collecting)(void *context);
+    int (*locked)(void *context);
+} ABoxEc800MqttRxPort;
+
 typedef struct {
     void *context;
     uint32_t (*tick_ms)(void *context);
@@ -74,6 +86,7 @@ typedef struct {
 
 typedef struct {
     ABoxEc800AtPort port;
+    ABoxEc800MqttRxPort mqtt_rx;
     uint8_t line[ABOX_EC800_AT_LINE_SIZE];
     uint16_t line_length;
     ABoxEc800Command queue[ABOX_EC800_AT_QUEUE_SIZE];
@@ -91,9 +104,12 @@ typedef struct {
     uint8_t active_payload_sent;
     uint8_t line_drop_until_lf;
     uint8_t quarantined;
+    uint8_t mqtt_rx_active;
 } ABoxEc800At;
 
 int ABoxEc800At_Init(ABoxEc800At *at, const ABoxEc800AtPort *port);
+int ABoxEc800At_SetMqttReceiver(ABoxEc800At *at,
+                                 const ABoxEc800MqttRxPort *receiver);
 void ABoxEc800At_Reset(ABoxEc800At *at);
 /* Opt-in fail-closed gate; cleared only by Reset after physical modem reset. */
 void ABoxEc800At_Quarantine(ABoxEc800At *at);

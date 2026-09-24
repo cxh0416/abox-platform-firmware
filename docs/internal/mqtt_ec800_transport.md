@@ -17,6 +17,6 @@
 
 ## 接收边界
 
-`ABoxMqttEc800Rx` 目前是待审、未接入的 Platform 实现。长度式 `+QMTRECV` 可交付包含 CR/LF 和二进制字节的 payload；旧式 JSON/引号拼帧须显式开启兼容模式。超长帧按已知长度丢弃，截断或超时后锁定解析器。只有 UART/AT 所有者确认旧数据排空或模组连接重置后，才可调用 `Reset` 重新接收。回调不得递归 Feed/Reset。
+`ABoxMqttEc800Rx` 已作为独立 Platform 组件加入，但尚未由产品启用。长度式 `+QMTRECV` 可交付包含 CR/LF 和二进制字节的 payload；旧式 JSON/引号拼帧须显式开启兼容模式。`ABoxEc800At_SetMqttReceiver` 在 AT 字节入口识别 MQTT URC，将完整报文交给该解析器；OTA RAW 所有权优先。超长帧按已知长度丢弃，截断或超时后锁定解析器并隔离 AT。只有 UART/AT 所有者确认旧数据排空或模组连接重置后，才可调用 `Reset` 重新接收。回调不得递归 Feed/Reset。
 
-公共 transport 接入前需完成：AT、MQTT、OTA RAW 的唯一分流；连接、订阅、发布、重连与取消的操作代次；发布确认与迟到 URC 隔离；静态缓冲区借出/归还；三个产品的行为测试和 ARM 资源检查。清扫车 SSL context 1 由 HTTPS 入网及 OTA 使用，MQTT 使用 context 2；context 2 的模组能力和并行行为仍需实机确认。
+公共 transport 接入前需完成：将唯一分流点接入三个产品；连接、订阅、发布、重连与取消的操作代次；发布确认与迟到 URC 隔离；静态缓冲区借出/归还；三个产品的行为测试和 ARM 资源检查。清扫车 SSL context 1 由 HTTPS 入网及 OTA 使用，MQTT 使用 context 2；context 2 的模组能力和并行行为仍需实机确认。

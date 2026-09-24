@@ -41,5 +41,6 @@ void ABoxMqttEc800Rx_Feed(ABoxMqttEc800Rx *rx, const uint8_t *bytes,
 void ABoxMqttEc800Rx_Reset(ABoxMqttEc800Rx *rx);
 void ABoxMqttEc800Rx_Poll(ABoxMqttEc800Rx *rx, uint32_t now_ms);
 int ABoxMqttEc800Rx_IsLocked(const ABoxMqttEc800Rx *rx);
+int ABoxMqttEc800Rx_IsCollecting(const ABoxMqttEc800Rx *rx);
 
 #endif

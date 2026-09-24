@@ -215,6 +215,12 @@ static void emit_line(ABoxEc800At *at)
 
 static void push(ABoxEc800At *at, uint8_t value)
 {
+    if (at->mqtt_rx_active) {
+        at->mqtt_rx.feed(at->mqtt_rx.context, &value, 1U, tick(at));
+        if (!at->mqtt_rx.collecting(at->mqtt_rx.context))
+            at->mqtt_rx_active = 0U;
+        return;
+    }
     if (at->line_drop_until_lf) {
         if (value == '\n') at->line_drop_until_lf = 0U;
         return;
@@ -239,6 +245,12 @@ static void push(ABoxEc800At *at, uint8_t value)
         at->line_drop_until_lf = 1U;
         if (at->line_overflow_count != 0xFFFFFFFFUL)
             ++at->line_overflow_count;
+    }
+    if (at->mqtt_rx.feed && at->line_length == sizeof("+QMTRECV:") - 1U &&
+        memcmp(at->line, "+QMTRECV:", sizeof("+QMTRECV:") - 1U) == 0) {
+        at->mqtt_rx.feed(at->mqtt_rx.context, at->line, at->line_length, tick(at));
+        at->line_length = 0U;
+        at->mqtt_rx_active = (uint8_t)at->mqtt_rx.collecting(at->mqtt_rx.context);
     }
 }
 
@@ -279,19 +291,33 @@ int ABoxEc800At_Init(ABoxEc800At *at, const ABoxEc800AtPort *port)
     return 1;
 }
 
+int ABoxEc800At_SetMqttReceiver(ABoxEc800At *at,
+                                 const ABoxEc800MqttRxPort *receiver)
+{
+    if (!at || at->active_valid || at->mqtt_rx_active ||
+        (receiver && (!receiver->feed || !receiver->poll ||
+                      !receiver->collecting || !receiver->locked))) return 0;
+    if (receiver) at->mqtt_rx = *receiver;
+    else memset(&at->mqtt_rx, 0, sizeof(at->mqtt_rx));
+    return 1;
+}
+
 void ABoxEc800At_Reset(ABoxEc800At *at)
 {
     ABoxEc800AtPort port;
+    ABoxEc800MqttRxPort mqtt_rx;
     ABoxEc800Handler handlers[ABOX_EC800_AT_HANDLER_SIZE];
     uint32_t rx_overflow_count;
     uint32_t line_overflow_count;
     if (!at) return;
     port = at->port;
+    mqtt_rx = at->mqtt_rx;
     rx_overflow_count = at->rx_overflow_count;
     line_overflow_count = at->line_overflow_count;
     memcpy(handlers, at->handlers, sizeof(handlers));
     memset(at, 0, sizeof(*at));
     at->port = port;
+    at->mqtt_rx = mqtt_rx;
     at->rx_overflow_count = rx_overflow_count;
     at->line_overflow_count = line_overflow_count;
     memcpy(at->handlers, handlers, sizeof(handlers));
@@ -320,6 +346,13 @@ void ABoxEc800At_Feed(ABoxEc800At *at, const uint8_t *data, uint16_t length)
 void ABoxEc800At_Task(ABoxEc800At *at)
 {
     if (!at || at->quarantined) return;
+    if (at->mqtt_rx_active) {
+        at->mqtt_rx.poll(at->mqtt_rx.context, tick(at));
+        if (at->mqtt_rx.locked(at->mqtt_rx.context)) {
+            ABoxEc800At_Quarantine(at);
+            return;
+        }
+    }
     if (at->active_valid && tick(at) - at->active_tick >= at->active.timeout_ms) {
         if (at->active_payload_command && !at->active_payload_sent) {
             const uint8_t escape = 0x1BU;
