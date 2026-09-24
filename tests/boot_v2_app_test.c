@@ -37,6 +37,8 @@ static uint32_t sent_payload_length;
 static uint32_t raw_wanted;
 static uint32_t tick_now;
 static uint32_t flash_read_count;
+static int delegated_stop_result;
+static uint32_t delegated_stop_calls, delegated_borrows, delegated_returns;
 
 static const uint8_t ca[] = "test-ca";
 static const ABoxBootV2Layout boot_layout = {
@@ -114,6 +116,24 @@ static void cancel(void *context)
 static void register_events(void *context, ABoxBootV2AtEventFn callback, void *user)
 { (void)context; event_fn = callback; event_user = user; }
 static void mqtt_pause(void *context, uint8_t paused) { (void)context; mqtt_paused = paused; }
+static int delegated_stop(void *context, uint32_t now)
+{
+    (void)context;
+    (void)now;
+    ++delegated_stop_calls;
+    return delegated_stop_result;
+}
+static int delegated_borrow(void *context)
+{
+    (void)context;
+    ++delegated_borrows;
+    return 1;
+}
+static void delegated_return(void *context)
+{
+    (void)context;
+    ++delegated_returns;
+}
 static uint8_t mqtt_client_index(void *context) { (void)context; return mqtt_index; }
 static void log_line(void *context, uint8_t level, const char *message)
 {
@@ -542,6 +562,46 @@ static void test_mqtt_client_quiesce(uint8_t index)
     assert(pending);
 }
 
+static void test_delegated_mqtt_quiesce(void)
+{
+    ABoxBootV2AppPort port = {
+        0, tick, submit, send_payload, begin_raw, has_pending, is_active,
+        cancel, register_events, mqtt_pause, mqtt_client_index, log_line,
+        transfer, sizeof(transfer), 0, delegated_stop, delegated_borrow,
+        delegated_return
+    };
+    ABoxBootV2AppConfig config = {
+        "https://ota.example:20443", "meal_delivery_vehicle", "meal_delivery_vehicle_app.bin",
+        "abox-v2-", "abox-v2-current", ca, sizeof(ca) - 1U,
+        0x08008000U, 128U, 0x36800U
+    };
+    ABoxBootV2AppRequest request;
+    prepare_flash();
+    reset_transport();
+    delegated_stop_result = 0;
+    delegated_stop_calls = delegated_borrows = delegated_returns = 0U;
+    assert(ABoxBootV2App_Init(&port, &config));
+    complete_probes();
+    finish_existing_ca();
+    memset(&request, 0, sizeof(request));
+    snprintf(request.url, sizeof(request.url),
+             "https://ota.example:20443/fw-revisions/meal_delivery_vehicle/abox-v2-next/meal_delivery_vehicle_app.bin");
+    snprintf(request.version, sizeof(request.version), "abox-v2-next");
+    request.size = 128U;
+    request.crc32 = 1U;
+    command[0] = 0;
+    assert(ABoxBootV2App_Start(&request));
+    assert(mqtt_paused && !pending && command[0] == 0);
+    ABoxBootV2App_Task();
+    assert(delegated_stop_calls == 1U && !delegated_borrows && !pending);
+    delegated_stop_result = 1;
+    ABoxBootV2App_Task();
+    assert(delegated_borrows == 1U && pending);
+    assert(strstr(command, "QMTDISC") == 0 &&
+           strstr(command, "QMTCLOSE") == 0);
+    assert(delegated_returns == 0U && mqtt_paused);
+}
+
 int main(void)
 {
     bind_platform();
@@ -555,6 +615,7 @@ int main(void)
     test_candidate_download();
     test_mqtt_client_quiesce(0U);
     test_mqtt_client_quiesce(1U);
+    test_delegated_mqtt_quiesce();
     test_download_failure_waits_before_retry();
     return 0;
 }

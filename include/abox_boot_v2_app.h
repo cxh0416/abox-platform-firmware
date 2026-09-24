@@ -52,6 +52,12 @@ typedef struct {
     uint8_t *transfer_buffer;
     uint32_t transfer_buffer_size;
     uint32_t (*rx_overflow_count)(void *context);
+    /* Optional App-side transport ownership. Stop returns 1 only after
+     * QMT close and drain, 0 while pending, -1 if modem reset is required.
+     * Borrow/return brackets all OTA use of a shared transfer buffer. */
+    int (*mqtt_stop)(void *context, uint32_t now_ms);
+    int (*workspace_borrow)(void *context);
+    void (*workspace_return)(void *context);
 } ABoxBootV2AppPort;
 
 typedef struct {

@@ -20,6 +20,7 @@ typedef enum {
     ST_CA_DELETE,
     ST_CA_UPLOAD,
     ST_IDLE,
+    ST_MQTT_QUIESCE,
     ST_MQTT_DISC,
     ST_MQTT_CLOSE,
     ST_DOWNLOADER,
@@ -87,6 +88,7 @@ typedef struct {
     uint32_t file_size;
     uint32_t last_error;
     uint8_t mqtt_client_index;
+    uint8_t workspace_borrowed;
     char last_command[80];
     uint32_t retry_due;
     char url[ABOX_BOOT_V2_APP_URL_SIZE];
@@ -188,6 +190,7 @@ static const char *provision_stage(void)
 static const char *download_stage(void)
 {
     switch (g.state) {
+    case ST_MQTT_QUIESCE: return "MQTT_QUIESCE";
     case ST_MQTT_DISC: return "MQTT_DISC";
     case ST_MQTT_CLOSE: return "MQTT_CLOSE";
     case ST_DOWNLOADER: return ABoxHttpsUfs_Phase(&g.downloader);
@@ -342,6 +345,10 @@ static int submit_command(const char *command, uint32_t timeout_ms)
 
 static void resume_mqtt(void)
 {
+    if (g.workspace_borrowed && g.port.workspace_return) {
+        g.port.workspace_return(g.port.context);
+        g.workspace_borrowed = 0U;
+    }
     if (g.port.mqtt_pause) g.port.mqtt_pause(g.port.context, 0U);
 }
 
@@ -417,6 +424,10 @@ static void begin_download(void)
 {
     char command[24];
     if (g.port.mqtt_pause) g.port.mqtt_pause(g.port.context, 1U);
+    if (g.port.mqtt_stop) {
+        g.state = ST_MQTT_QUIESCE;
+        return;
+    }
     g.mqtt_client_index = g.port.mqtt_client_index(g.port.context);
     g.state = ST_MQTT_DISC;
     (void)snprintf(command, sizeof(command), "AT+QMTDISC=%u",
@@ -428,17 +439,20 @@ static int running_image_crc(uint32_t *result)
 {
     uint32_t offset = 0U;
     uint32_t crc = 0xFFFFFFFFU;
+    uint8_t scratch[16];
+    uint8_t *buffer = g.port.mqtt_stop ? scratch : g.port.transfer_buffer;
+    uint32_t capacity = g.port.mqtt_stop ? sizeof(scratch) :
+                        g.port.transfer_buffer_size;
     if (!result || !g.port.transfer_buffer ||
         g.port.transfer_buffer_size < ABOX_BOOT_V2_APP_RAW_CHUNK)
         return 0;
     while (offset < g.cfg.app_size) {
         uint32_t length = g.cfg.app_size - offset;
-        if (length > ABOX_BOOT_V2_APP_RAW_CHUNK)
-            length = ABOX_BOOT_V2_APP_RAW_CHUNK;
+        if (length > capacity) length = capacity;
         if (!ABox_PortFlashRead(g.cfg.app_start_addr + offset,
-                                g.port.transfer_buffer, length))
+                                buffer, length))
             return 0;
-        crc = crc_update(crc, g.port.transfer_buffer, (uint16_t)length);
+        crc = crc_update(crc, buffer, (uint16_t)length);
         offset += length;
     }
     *result = crc ^ 0xFFFFFFFFU;
@@ -955,7 +969,11 @@ int ABoxBootV2App_Init(const ABoxBootV2AppPort *port,
     if (!port || !config || !port->submit || !port->register_events ||
         !port->mqtt_client_index ||
         !port->transfer_buffer ||
-        port->transfer_buffer_size < ABOX_BOOT_V2_APP_RAW_CHUNK)
+        port->transfer_buffer_size < ABOX_BOOT_V2_APP_RAW_CHUNK ||
+        (port->mqtt_stop && (!port->workspace_borrow ||
+                             !port->workspace_return)) ||
+        (!port->mqtt_stop && (port->workspace_borrow ||
+                              port->workspace_return)))
         return 0;
 
     memset(&g, 0, sizeof(g));
@@ -1069,6 +1087,23 @@ void ABoxBootV2App_Task(void)
         return;
     }
     if (g.state == ST_ERROR || g.state == ST_RETRY) return;
+
+    if (g.state == ST_MQTT_QUIESCE) {
+        int stopped = g.port.mqtt_stop(g.port.context, now());
+        if (stopped < 0) {
+            download_fail(ABOX_BOOT_V2_APP_ERROR_STATE);
+            return;
+        }
+        if (!stopped) return;
+        if (!g.port.workspace_borrow(g.port.context)) {
+            download_fail(ABOX_BOOT_V2_APP_ERROR_STATE);
+            return;
+        }
+        g.workspace_borrowed = 1U;
+        g.state = ST_MQTT_CLOSE;
+        command_succeeded();
+        return;
+    }
 
     if (g.state == ST_DOWNLOADER) {
         ABoxHttpsUfs_Task(&g.downloader);

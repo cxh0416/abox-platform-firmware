@@ -30,3 +30,5 @@
 `ABoxMqttEc800_Stop` 只有在 QMTDISC、QMTCLOSE 和迟到 URC 排空窗口结束后返回 1；返回 -1 表示状态不确定。配置更新只允许在 IDLE 或 PAUSED，工作区只允许在 PAUSED 且 AT 无未完成命令时借出，归还时重置 RX。runtime 提供可选 `mqtt_stop` 回调；产品接入时须使用此回调把关闭权交给 transport，避免 runtime 和 transport 双方各发一套 QMTDISC/QMTCLOSE。
 
 当前独立主机测试覆盖正常连接、订阅、接收、发布、重复确认、关闭排空、断线重连、订阅失败、借还及发布超时后的锁定与复位。三个产品尚未启用该组件；这不是设备模组、Broker 或业务平台验收证据。
+
+App OTA 的可选回调 `mqtt_stop`、`workspace_borrow`、`workspace_return` 允许下载器先等待 transport 关闭并排空，再借用既有传输缓冲区，完成或失败时归还后恢复 MQTT。未接入回调的旧产品仍走原有关闭流程；冻结 Boot 不参与此 App 侧变更。
