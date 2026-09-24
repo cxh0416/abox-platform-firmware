@@ -7,11 +7,13 @@ int main(void)
     ABoxTlsLease l, other, stale;
     ABoxTlsProfile profile = {"UFS:mqtt_ca_v2.pem", 2, 1, 1};
     unsigned i;
-    CHECK(ABoxEc800Tls_Init(&t, &p, 0x06));
+    CHECK(ABoxEc800Tls_Init(&t, &p, 0U));
+    CHECK(ABoxEc800Tls_SetSupportedMask(&t, 0x06U));
     CHECK(!ABoxEc800Tls_Acquire(&t, 1, 16, &l)); /* Legacy OTA reservation. */
     CHECK(!ABoxEc800Tls_Acquire(&t, 0, 16, &l)); /* Not verified supported. */
     CHECK(!ABoxEc800Tls_Acquire(&t, 8, 16, &l));
     l = prepared(&t, 2);
+    CHECK(!ABoxEc800Tls_SetSupportedMask(&t, 0U));
     CHECK(!ABoxEc800Tls_Acquire(&t, 2, 16, &other)); /* Same owner also conflicts. */
     CHECK(!ABoxEc800Tls_Acquire(&t, 2, 17, &other));
     CHECK(m.count == 5);

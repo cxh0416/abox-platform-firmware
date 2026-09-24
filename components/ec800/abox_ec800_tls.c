@@ -13,6 +13,15 @@ int ABoxEc800Tls_Init(ABoxEc800Tls *t, const ABoxEc800CommandPort *p, uint8_t ma
     memset(t, 0, sizeof(*t)); t->port = *p;
     t->supported_mask = (uint8_t)(mask & ~(1U << ABOX_TLS_LEGACY_HTTPS_CONTEXT)); return 1;
 }
+int ABoxEc800Tls_SetSupportedMask(ABoxEc800Tls *t, uint8_t mask)
+{
+    uint8_t id;
+    if (!t) return 0;
+    for (id = 0U; id < ABOX_TLS_CONTEXT_CAPACITY; ++id)
+        if (t->slots[id].owner) return 0;
+    t->supported_mask = (uint8_t)(mask & ~(1U << ABOX_TLS_LEGACY_HTTPS_CONTEXT));
+    return 1;
+}
 int ABoxEc800Tls_Acquire(ABoxEc800Tls *t, uint8_t id, uint32_t owner, ABoxTlsLease *l)
 {
     ABoxTlsSlot *s;

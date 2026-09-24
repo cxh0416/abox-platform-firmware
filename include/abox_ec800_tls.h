@@ -34,6 +34,9 @@ typedef struct {
  * always reserved for unmodified legacy HTTPS OTA, even after modem reset. */
 int ABoxEc800Tls_Init(ABoxEc800Tls *tls, const ABoxEc800CommandPort *port,
                       uint8_t verified_supported_mask);
+/* Update only after probing the physical modem and while no leases exist. */
+int ABoxEc800Tls_SetSupportedMask(ABoxEc800Tls *tls,
+                                  uint8_t verified_supported_mask);
 int ABoxEc800Tls_Acquire(ABoxEc800Tls *tls, uint8_t context, uint32_t owner,
                          ABoxTlsLease *lease);
 int ABoxEc800Tls_Release(ABoxEc800Tls *tls, ABoxTlsLease lease);
