@@ -5,90 +5,18 @@
     "commands": [
       {
         "name": "sync_state",
-        "applicableProfiles": ["core"],
+        "applicableProfiles": [
+          "core"
+        ],
         "introducedVersion": "4.0",
         "semanticDescription": "Request complete state reports for every currently enabled stateful profile.",
         "classification": "CORE",
-        "operationMatcher": {"field": "data.command", "equals": "sync_state"}
+        "operationMatcher": {
+          "field": "data.command",
+          "equals": "sync_state"
+        }
       }
     ]
   },
-  "profiles": [
-    {
-      "name": "locker",
-      "supportedMajors": [1],
-      "currentVersion": "1.0",
-      "contract": "https://github.com/cxh0416/abox-meal-delivery-firmware/blob/main/docs/protocols/A-BOX格口设备业务协议-V4.0.md",
-      "commands": [
-        {
-          "name": "open_locker",
-          "applicableProfiles": ["locker"],
-          "introducedVersion": "1.0",
-          "semanticDescription": "Open the requested locker compartments and return the final confirmed result.",
-          "classification": "DISCRETE_ACTION",
-          "operationMatcher": {"field": "data.command", "equals": "open_locker"}
-        },
-        {
-          "name": "check_locker_status",
-          "applicableProfiles": ["locker"],
-          "introducedVersion": "1.0",
-          "semanticDescription": "Read the current public state of the requested locker compartments.",
-          "classification": "QUERY",
-          "operationMatcher": {"field": "data.command", "equals": "check_locker_status"}
-        }
-      ],
-      "reports": [
-        {
-          "name": "locker_status",
-          "ownerProfile": "locker",
-          "introducedVersion": "1.0",
-          "semanticDescription": "Complete public state snapshot for every configured locker compartment.",
-          "reportType": "state",
-          "operationMatcher": {"field": "data.reportName", "equals": "locker_status"}
-        }
-      ]
-    },
-    {
-      "name": "vehicle_chassis",
-      "supportedMajors": [1],
-      "currentVersion": "1.0",
-      "contract": "https://github.com/cxh0416/abox-patrol-vehicle-chassis-firmware/blob/main/docs/protocols/A-BOX巡防车底盘业务协议-V4.0.md",
-      "commands": [
-        {
-          "name": "power_on",
-          "applicableProfiles": ["vehicle_chassis"],
-          "introducedVersion": "1.0",
-          "semanticDescription": "Request device power control outputs on without claiming external load feedback or motion permission.",
-          "classification": "DISCRETE_ACTION",
-          "operationMatcher": {"field": "data.command", "equals": "power_on"}
-        },
-        {
-          "name": "power_off",
-          "applicableProfiles": ["vehicle_chassis"],
-          "introducedVersion": "1.0",
-          "semanticDescription": "Request device power control outputs off without claiming external load feedback or motion permission.",
-          "classification": "SAFETY_STOP",
-          "operationMatcher": {"field": "data.command", "equals": "power_off"}
-        },
-        {
-          "name": "chassis_control",
-          "applicableProfiles": ["vehicle_chassis"],
-          "introducedVersion": "1.0",
-          "semanticDescription": "Acquire, renew, or safely stop the leased chassis motion session.",
-          "classification": "CONTINUOUS_SESSION",
-          "operationMatcher": {"field": "data.command", "equals": "chassis_control"}
-        }
-      ],
-      "reports": [
-        {
-          "name": "chassis_status",
-          "ownerProfile": "vehicle_chassis",
-          "introducedVersion": "1.0",
-          "semanticDescription": "Complete public chassis target, measured feedback, safety, power, and fault state.",
-          "reportType": "state",
-          "operationMatcher": {"field": "data.reportName", "equals": "chassis_status"}
-        }
-      ]
-    }
-  ]
+  "profiles": []
 }

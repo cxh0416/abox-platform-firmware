@@ -99,17 +99,6 @@ def normalize_vector(vector):
         normalized_value = dict(value)
         normalized_value["profiles"] = normalized_profiles
         return normalized_value
-    if normalization == "locker_grid_set":
-        normalized_value = dict(value)
-        params = dict(value["params"])
-        grid_numbers = params["gridNos"]
-        if not grid_numbers or any(not item.isdigit() or (len(item) > 1 and item[0] == "0") for item in grid_numbers):
-            raise ContractError("locker grid numbers must be canonical decimal strings")
-        if len(grid_numbers) != len(set(grid_numbers)):
-            raise ContractError("locker grid numbers must be unique")
-        params["gridNos"] = sorted(grid_numbers, key=int)
-        normalized_value["params"] = params
-        return normalized_value
     if normalization is not None:
         raise ContractError(f"unknown normalization: {normalization}")
     return value
@@ -198,8 +187,6 @@ def validate_registry(registry) -> list[str]:
         if isinstance(applicable, list) and set(applicable) != usages:
             failures.append(f"command {name}: applicableProfiles does not match registered profiles")
 
-    if not registry.get("profiles"):
-        failures.append("registry must contain at least one frozen profile")
     return failures
 
 
@@ -211,6 +198,19 @@ def main() -> int:
     registry = load_contract_json(registry_path.read_text(encoding="utf-8"))
 
     failures = validate_registry(registry)
+    for profile_path in sys.argv[1:]:
+        product_registry = load_contract_json(Path(profile_path).read_text(encoding="utf-8"))
+        if product_registry.get("schemaVersion") != registry.get("schemaVersion"):
+            failures.append(f"{profile_path}: schemaVersion mismatch")
+            continue
+        if product_registry.get("protocolVersion") != registry.get("protocolVersion"):
+            failures.append(f"{profile_path}: protocolVersion mismatch")
+            continue
+        profile = product_registry.get("profile")
+        if not isinstance(profile, dict):
+            failures.append(f"{profile_path}: profile object required")
+            continue
+        failures.extend(validate_registry({**registry, "profiles": [profile]}))
     for vector in vectors["valid"]:
         actual = canonicalize(normalize_vector(vector))
         digest = hashlib.sha256(actual.encode("utf-8")).hexdigest()

@@ -5,47 +5,87 @@
     {
       "name": "normalized-manifest",
       "normalization": "manifest",
-      "value": {"profiles": [{"instances": ["2", "1"], "version": "1.1", "name": "example_b"}, {"version": "1.0", "name": "example_a"}], "firmware": "test-1.0.0"},
+      "value": {
+        "profiles": [
+          {
+            "instances": [
+              "2",
+              "1"
+            ],
+            "version": "1.1",
+            "name": "example_b"
+          },
+          {
+            "version": "1.0",
+            "name": "example_a"
+          }
+        ],
+        "firmware": "test-1.0.0"
+      },
       "canonical": "{\"firmware\":\"test-1.0.0\",\"profiles\":[{\"name\":\"example_a\",\"version\":\"1.0\"},{\"instances\":[\"1\",\"2\"],\"name\":\"example_b\",\"version\":\"1.1\"}]}",
       "sha256": "c59a64516ec2b9a7baa3695d65783d375000b6d323c4446e7df9abe6e144bda3"
     },
     {
-      "name": "normalized-locker-request",
-      "normalization": "locker_grid_set",
-      "value": {"params": {"gridNos": ["6", "1", "2"]}, "expiresAt": 1770186098000, "command": "open_locker"},
-      "canonical": "{\"command\":\"open_locker\",\"expiresAt\":1770186098000,\"params\":{\"gridNos\":[\"1\",\"2\",\"6\"]}}",
-      "sha256": "3e79f070a44ee9512e6ba7f439eaa843580b3556e354e6674f208422a3f0c543"
-    },
-    {
       "name": "unicode-is-not-normalized",
-      "value": {"msg": "格口打开"},
+      "value": {
+        "msg": "格口打开"
+      },
       "canonical": "{\"msg\":\"格口打开\"}",
       "sha256": "da2ac1209441101787426bfdc0516d6b2b5a6dddb621a2d4c2b036bf7f9ac6bd"
     },
     {
       "name": "ordinary-array-order-a",
-      "value": {"values": [1, 2, 3]},
+      "value": {
+        "values": [
+          1,
+          2,
+          3
+        ]
+      },
       "canonical": "{\"values\":[1,2,3]}",
       "sha256": "abe0a9abcc957f9f5aa04d68c4f49fadee7c4b62343e403a3a1c0b646519d53c"
     },
     {
       "name": "ordinary-array-order-b",
-      "value": {"values": [3, 2, 1]},
+      "value": {
+        "values": [
+          3,
+          2,
+          1
+        ]
+      },
       "canonical": "{\"values\":[3,2,1]}",
       "sha256": "9292645f8764edcacb2ee3329165d4fb46edb38160866aaa35850bfd5333d384"
     },
     {
       "name": "maximum-safe-epoch",
-      "value": {"timestamp": 9007199254740991},
+      "value": {
+        "timestamp": 9007199254740991
+      },
       "canonical": "{\"timestamp\":9007199254740991}",
       "sha256": "cc8af82fdaab301cdbc3ccf2ed87f8401eeee55d745544f3c31b813e487828ca"
     }
   ],
   "invalidJson": [
-    {"name": "duplicate-key", "json": "{\"a\":1,\"a\":2}"},
-    {"name": "unsafe-integer", "json": "{\"timestamp\":9007199254740992}"},
-    {"name": "fraction", "json": "{\"timestamp\":1.5}"},
-    {"name": "exponent", "json": "{\"timestamp\":1e3}"},
-    {"name": "negative-zero", "json": "{\"timestamp\":-0}"}
+    {
+      "name": "duplicate-key",
+      "json": "{\"a\":1,\"a\":2}"
+    },
+    {
+      "name": "unsafe-integer",
+      "json": "{\"timestamp\":9007199254740992}"
+    },
+    {
+      "name": "fraction",
+      "json": "{\"timestamp\":1.5}"
+    },
+    {
+      "name": "exponent",
+      "json": "{\"timestamp\":1e3}"
+    },
+    {
+      "name": "negative-zero",
+      "json": "{\"timestamp\":-0}"
+    }
   ]
 }

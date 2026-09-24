@@ -36,9 +36,15 @@ typedef struct {
     size_t report_count;
 } ABoxMqttProfileDescriptor;
 
-const ABoxMqttProfileDescriptor *ABoxMqttV4_LockerProfile(void);
-const ABoxMqttProfileDescriptor *ABoxMqttV4_VehicleChassisProfile(void);
-const ABoxMqttProfileDescriptor *ABoxMqttV4_SweeperVehicleProfile(void);
+/* Products supply a static array containing only their linked profiles. */
+typedef struct {
+    const ABoxMqttProfileDescriptor *const *profiles;
+    size_t count;
+} ABoxMqttV4Registry;
+
+const ABoxMqttProfileDescriptor *ABoxMqttV4_FindProfile(
+    const ABoxMqttV4Registry *registry, const char *name);
+int ABoxMqttV4_RegistryValid(const ABoxMqttV4Registry *registry);
 const ABoxMqttCommandDescriptor *ABoxMqttV4_FindCommand(
     const ABoxMqttProfileDescriptor *profile, const char *name);
 const ABoxMqttReportDescriptor *ABoxMqttV4_FindReport(
@@ -47,12 +53,5 @@ const ABoxMqttReportDescriptor *ABoxMqttV4_FindReport(
 uint8_t ABoxMqttV4_SubscriptionQos(const char *topic);
 uint8_t ABoxMqttV4_ReportQos(const char *report_type);
 uint64_t ABoxMqttV4_IdempotencyProtectUntil(uint64_t expires_at);
-
-/* Registry normalization for locker grid-set commands. grid_nos are numeric
- * strings and are sorted numerically without modifying the caller's array. */
-int ABoxMqttV4_CanonicalizeLockerRequest(char *output, size_t output_size,
-                                         const char *command, uint64_t expires_at,
-                                         uint8_t include_expires_at,
-                                         const char *const *grid_nos, size_t grid_count);
 
 #endif
