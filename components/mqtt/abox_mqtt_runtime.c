@@ -91,7 +91,7 @@ int ABoxMqttRuntime_Init(ABoxMqttRuntime *r, ABoxEc800At *at,
   memset(&q, 0, sizeof(q));
   r->callbacks = *p;
   r->options = *o;
-  if (!config(r, c) ||
+  if ((c && !config(r, c)) ||
       !ABoxEc800CommandAdapter_Init(&r->adapter, at, o->owner, &q) ||
       !ABoxEc800Tls_Init(&r->tls, &q, o->supported_tls_context_mask) ||
       !ABoxMqttTls_Init(&r->mqtt_tls, &r->tls, &q, o->tls_client) ||
@@ -100,6 +100,10 @@ int ABoxMqttRuntime_Init(ABoxMqttRuntime *r, ABoxEc800At *at,
   r->command = q;
   r->initialized = 1;
   gate(r, 0);
+  if (!c) {
+    state(r, ABOX_MQTT_RUNTIME_FAILED, "await-enrollment");
+    return 1;
+  }
   return start(r, now);
 }
 int ABoxMqttRuntime_Stage(ABoxMqttRuntime *r, const ABoxMqttConfig *c) {
@@ -299,6 +303,10 @@ void ABoxMqttRuntime_OnModemReset(ABoxMqttRuntime *r, uint32_t now) {
   memset(&r->lease, 0, sizeof(r->lease));
   r->active_tls = 0;
   gate(r, 0);
+  if (!r->requested.host) {
+    state(r, ABOX_MQTT_RUNTIME_FAILED, "await-enrollment");
+    return;
+  }
   if (!start(r, now))
     fail(r, "modem-reset");
 }
