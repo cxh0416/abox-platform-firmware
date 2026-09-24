@@ -128,6 +128,15 @@ static void dispatch_line(ABoxEc800At *at, const uint8_t *data, uint16_t length)
 {
     ABoxEc800Owner target = ABOX_EC800_OWNER_NONE;
     uint8_t i;
+    if (length == 3U && memcmp(data, "RDY", 3U) == 0) {
+        static const uint8_t ready[] = "RDY";
+        ABoxEc800At_Reset(at);
+        for (i = 0U; i < ABOX_EC800_AT_HANDLER_SIZE; ++i)
+            if (at->handlers[i].callback)
+                at->handlers[i].callback(ABOX_EC800_EVENT_LINE, ready, 3U,
+                                         at->handlers[i].user);
+        return;
+    }
     if (at->port.route_line) {
         target = at->port.route_line(at->port.context, data, length,
                                      at->active_valid ? at->active.owner

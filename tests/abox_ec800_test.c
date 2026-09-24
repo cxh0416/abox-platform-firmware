@@ -258,6 +258,27 @@ static void test_internal_mqtt_max_payload_line_is_delivered(void)
     assert(g_last_line_length == (uint16_t)(length - 2U));
 }
 
+static void test_modem_ready_reaches_all_owners_during_active_command(void)
+{
+    ABoxEc800At at;
+    ABoxEc800AtPort port = {0, tick_ms, write_data, 0};
+    uint32_t mqtt_lines = 0U, tls_lines = 0U;
+    assert(ABoxEc800At_Init(&at, &port));
+    assert(ABoxEc800At_Register(&at, ABOX_EC800_OWNER_MQTT,
+                                counted_event, &mqtt_lines));
+    assert(ABoxEc800At_Register(&at, ABOX_EC800_OWNER_PRODUCT_BASE + 3U,
+                                counted_event, &tls_lines));
+    assert(ABoxEc800At_Submit(&at, "AT+QHTTPGET=80", ABOX_EC800_OWNER_OTA,
+                              ABOX_EC800_PRIORITY_HIGH, 1000U, done, 0));
+    ABoxEc800At_Task(&at);
+    assert(at.active_valid);
+    ABoxEc800At_Feed(&at, (const uint8_t *)"RDY\r\n", 5U);
+    assert(mqtt_lines == 1U && tls_lines == 1U);
+    assert(!at.active_valid && !at.quarantined);
+    assert(ABoxEc800At_Submit(&at, "AT", ABOX_EC800_OWNER_MQTT,
+                              ABOX_EC800_PRIORITY_NORMAL, 1000U, done, 0));
+}
+
 int main(void)
 {
     test_async_direct_command();
@@ -268,5 +289,6 @@ int main(void)
     test_circular_dma_wrap_and_overflow();
     test_internal_mqtt_max_payload_line_is_delivered();
     test_overlong_line_is_dropped_and_next_urc_recovers();
+    test_modem_ready_reaches_all_owners_during_active_command();
     return 0;
 }
