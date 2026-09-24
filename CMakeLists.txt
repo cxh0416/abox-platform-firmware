@@ -193,3 +193,15 @@ if(BUILD_TESTING AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     target_link_libraries(abox_boot_v2_app_test PRIVATE abox::boot_v2_app)
     add_test(NAME abox_boot_v2_app_test COMMAND abox_boot_v2_app_test)
 endif()
+
+# A product only builds the components it links through its explicit list.
+# Standalone Platform builds keep all libraries available for host tests.
+if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    get_property(abox_targets DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(abox_target IN LISTS abox_targets)
+        get_target_property(abox_type ${abox_target} TYPE)
+        if(abox_type STREQUAL "STATIC_LIBRARY")
+            set_property(TARGET ${abox_target} PROPERTY EXCLUDE_FROM_ALL TRUE)
+        endif()
+    endforeach()
+endif()

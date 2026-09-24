@@ -8,19 +8,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def configure(name: str, arguments: str, success: bool, diagnostic: str = "") -> None:
+def configure(name: str, arguments: str, success: bool, diagnostic: str = "",
+              inspect_build: bool = False) -> None:
     with tempfile.TemporaryDirectory(prefix=f"cmake-{name}-", dir=ROOT / "build") as folder:
         source = Path(folder)
         config = source / "config"
         config.mkdir()
         (config / "abox_product_config.h").write_text(
             "/* synthetic hardware contract */\nABOX_SCHEDULER_BAREMETAL\n", encoding="utf-8")
-        (source / "consumer.c").write_text("int consumer(void) { return 0; }\n", encoding="utf-8")
+        (source / "consumer.c").write_text("int main(void) { return 0; }\n", encoding="utf-8")
         (source / "CMakeLists.txt").write_text(
             "cmake_minimum_required(VERSION 3.22)\n"
             "project(component_contract C)\n"
             f"add_subdirectory(\"{ROOT.as_posix()}\" platform-build)\n"
-            "add_library(consumer STATIC consumer.c)\n"
+            "add_executable(consumer consumer.c)\n"
             f"set(ABOX_PRODUCT_CONFIG_DIR \"{config.as_posix()}\")\n"
             f"abox_platform_attach_components(consumer {arguments})\n",
             encoding="utf-8")
@@ -31,11 +32,19 @@ def configure(name: str, arguments: str, success: bool, diagnostic: str = "") ->
         assert (result.returncode == 0) == success, f"{name}: {output}"
         if diagnostic:
             assert diagnostic in output, f"{name}: {output}"
+        if inspect_build:
+            built = subprocess.run(["cmake", "--build", str(source / "build")],
+                                   capture_output=True, text=True)
+            assert built.returncode == 0, f"{name} build: {built.stdout}{built.stderr}"
+            assert (source / "build/platform-build/libabox_mqtt_v4.a").exists()
+            assert not (source / "build/platform-build/libabox_ota.a").exists()
+            assert not (source / "build/platform-build/libabox_mqtt_ec800_rx.a").exists()
 
 
 def main() -> None:
     (ROOT / "build").mkdir(exist_ok=True)
-    configure("generic-mqtt", "SCHEDULER BAREMETAL COMPONENTS core mqtt_v4", True)
+    configure("generic-mqtt", "SCHEDULER BAREMETAL COMPONENTS core mqtt_v4", True,
+              inspect_build=True)
     configure("hardware", "SCHEDULER BAREMETAL HARDWARE stm32f105_ec800_v1 COMPONENTS core", True)
     configure("hardware-mismatch", "SCHEDULER FREERTOS HARDWARE stm32f105_ec800_v1 COMPONENTS core",
               False, "scheduler disagrees")
