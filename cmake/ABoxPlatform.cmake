@@ -27,13 +27,27 @@ function(abox_platform_attach_components target)
         if(component STREQUAL "boot" OR component STREQUAL "ota")
             message(FATAL_ERROR "abox_platform_attach_components: legacy Boot/OTA must be attached explicitly")
         endif()
-        if(NOT component MATCHES "^(core|cjson|ec_power|ec800|ec800_command_port|ec800_tls|mqtt_tls|mqtt_runtime|mqtt_trial|mqtt_v4|enrollment|enrollment_ec800_http|boot_v2_app|https_ufs_downloader)$")
+        if(NOT component MATCHES "^(core|cjson|ec_power|ec800|ec800_ufs|ec800_command_port|ec800_tls|mqtt_tls|mqtt_runtime|mqtt_trial|mqtt_v4|enrollment|enrollment_ec800_http|boot_v2_common|boot_v2_app|https_ufs_downloader)$")
             message(FATAL_ERROR "abox_platform_attach_components: unknown component '${component}'")
         endif()
         if(NOT TARGET abox::${component})
             message(FATAL_ERROR "abox_platform_attach_components: unavailable component '${component}'")
         endif()
         target_link_libraries(${target} abox::${component})
+    endforeach()
+    foreach(requirement IN ITEMS
+            "ec_power:core" "ec800_command_port:ec800" "ec800_tls:ec800_ufs"
+            "mqtt_tls:ec800_tls" "mqtt_runtime:mqtt_tls"
+            "mqtt_runtime:ec800_command_port" "enrollment:cjson"
+            "enrollment_ec800_http:ec800" "boot_v2_common:core"
+            "boot_v2_app:boot_v2_common" "boot_v2_app:https_ufs_downloader")
+        string(REPLACE ":" ";" pair "${requirement}")
+        list(GET pair 0 selected)
+        list(GET pair 1 dependency)
+        if(selected IN_LIST ABOX_COMPONENTS AND NOT dependency IN_LIST ABOX_COMPONENTS)
+            message(FATAL_ERROR
+                "abox_platform_attach_components: '${selected}' requires '${dependency}'")
+        endif()
     endforeach()
 endfunction()
 
