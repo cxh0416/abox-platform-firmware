@@ -144,6 +144,8 @@ int ABoxMqttRuntime_Activate(ABoxMqttRuntime *r, uint32_t now) {
   r->waiting = 0;
   r->started = now;
   state(r, ABOX_MQTT_RUNTIME_DISCONNECT, "disconnect");
+  if (r->callbacks.mqtt_stop)
+    return 1;
   snprintf(c, sizeof(c), "AT+QMTDISC=%u",
            r->active_tls ? r->options.tls_client : r->options.plain_client);
   r->waiting = (uint8_t)r->command.submit(
@@ -170,6 +172,21 @@ static void disconnect(ABoxMqttRuntime *r, uint32_t now) {
   ABoxAsyncStatus s;
   uint8_t client =
       r->active_tls ? r->options.tls_client : r->options.plain_client;
+  if (r->callbacks.mqtt_stop) {
+    int stopped;
+    r->callbacks.mqtt_task(r->callbacks.user);
+    stopped = r->callbacks.mqtt_stop(r->callbacks.user, now);
+    if (stopped < 0) { fail(r, "transport-stop"); return; }
+    if (!stopped) return;
+    if (r->active_tls) {
+      if (!ABoxMqttTls_Unbind(&r->mqtt_tls, now, r->options.command_timeout_ms)) {
+        fail(r, "unbind-start");
+        return;
+      }
+      state(r, ABOX_MQTT_RUNTIME_UNBIND, "unbind");
+    } else if (!start(r, now)) fail(r, "plain-start");
+    return;
+  }
   if (!r->waiting) {
     snprintf(c, sizeof(c),
              r->disconnect_step ? "AT+QMTCLOSE=%u" : "AT+QMTDISC=%u", client);
@@ -249,6 +266,21 @@ static void stop_poll(ABoxMqttRuntime *r, uint32_t now)
   char command[32];
   ABoxAsyncStatus result;
   uint8_t client = r->active_tls ? r->options.tls_client : r->options.plain_client;
+  if (r->callbacks.mqtt_stop &&
+      r->state == ABOX_MQTT_RUNTIME_STOP_WAIT_DRAIN) {
+    int stopped;
+    r->callbacks.mqtt_task(r->callbacks.user);
+    stopped = r->callbacks.mqtt_stop(r->callbacks.user, now);
+    if (stopped < 0) { fail(r, "transport-stop"); return; }
+    if (!stopped) return;
+    if (!r->active_tls) { stop_complete(r); return; }
+    if (!ABoxMqttTls_Unbind(&r->mqtt_tls, now, r->options.command_timeout_ms)) {
+      fail(r, "stop-unbind-start");
+      return;
+    }
+    state(r, ABOX_MQTT_RUNTIME_STOP_UNBIND, "stop-unbind");
+    return;
+  }
   if (r->state == ABOX_MQTT_RUNTIME_STOP_WAIT_DRAIN) {
     if (r->adapter.at->quarantined) { fail(r, "stop-drain"); return; }
     if (ABoxEc800At_IsBusy(r->adapter.at) ||

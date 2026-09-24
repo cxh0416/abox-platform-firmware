@@ -45,6 +45,9 @@ typedef struct {
   void (*set_security_ready)(void *, uint8_t);
   int (*apply_config)(void *, const ABoxMqttConfig *);
   void (*mqtt_task)(void *);
+  /* When supplied, transport owns QMTDISC/QMTCLOSE and drain. Return 1 only
+   * after confirmed close, 0 while stopping, -1 when reuse is unsafe. */
+  int (*mqtt_stop)(void *, uint32_t now_ms);
   uint8_t (*mqtt_ready)(void *);
   uint8_t (*mqtt_connected)(void *);
   uint8_t (*ca_ready)(void *);

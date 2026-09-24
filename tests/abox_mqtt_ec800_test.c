@@ -1,0 +1,210 @@
+#include "abox_mqtt_ec800.h"
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#undef assert
+#define assert(check) do { if (!(check)) { \
+    fprintf(stderr, "check failed at %s:%d: %s\n", __FILE__, __LINE__, #check); \
+    exit(1); \
+} } while (0)
+
+typedef struct {
+    ABoxEc800At at;
+    ABoxMqttEc800 mqtt;
+    uint32_t now;
+    char command[256];
+    uint8_t sent_payload[64];
+    size_t sent_length;
+    unsigned messages, submitted, confirmed, failed;
+    uint64_t last_operation;
+} Fixture;
+
+static uint32_t tick(void *context)
+{
+    return ((Fixture *)context)->now;
+}
+static int write_bytes(void *context, const uint8_t *data, uint16_t length,
+                       uint32_t timeout)
+{
+    Fixture *f = (Fixture *)context;
+    (void)timeout;
+    if (length >= 3U && data[0] == 'A' && data[1] == 'T') {
+        assert(length < sizeof(f->command));
+        memcpy(f->command, data, length);
+        f->command[length] = 0;
+    } else {
+        assert(length <= sizeof(f->sent_payload));
+        memcpy(f->sent_payload, data, length);
+        f->sent_length = length;
+    }
+    return 1;
+}
+static void incoming(void *user, const uint8_t *topic, size_t topic_length,
+                     const uint8_t *payload, size_t payload_length)
+{
+    Fixture *f = (Fixture *)user;
+    assert(topic_length == 3U && !memcmp(topic, "a/b", 3U));
+    assert(payload_length == 4U && !memcmp(payload, "test", 4U));
+    ++f->messages;
+}
+static void published(void *user, uint64_t operation,
+                      ABoxMqttEc800PublishEvent event)
+{
+    Fixture *f = (Fixture *)user;
+    f->last_operation = operation;
+    if (event == ABOX_MQTT_EC800_PUBLISH_SUBMITTED) ++f->submitted;
+    if (event == ABOX_MQTT_EC800_PUBLISH_CONFIRMED) ++f->confirmed;
+    if (event == ABOX_MQTT_EC800_PUBLISH_FAILED) ++f->failed;
+}
+static void feed(Fixture *f, const char *line)
+{
+    ABoxEc800At_Feed(&f->at, (const uint8_t *)line, (uint16_t)strlen(line));
+}
+static void cycle(Fixture *f)
+{
+    ABoxMqttEc800_Poll(&f->mqtt, f->now);
+    ABoxEc800At_Task(&f->at);
+}
+static void answer(Fixture *f, const char *expected, const char *response)
+{
+    cycle(f);
+    assert(strncmp(f->command, expected, strlen(expected)) == 0);
+    f->command[0] = 0;
+    feed(f, response);
+    ++f->now;
+    cycle(f);
+}
+static void connect_session(Fixture *f)
+{
+    char sub_response[48];
+    answer(f, "ATE0", "OK\r\n");
+    answer(f, "AT+QMTCFG", "OK\r\n");
+    answer(f, "AT+CEREG?", "+CEREG: 0,1\r\nOK\r\n");
+    answer(f, "AT+CGATT?", "+CGATT: 1\r\nOK\r\n");
+    answer(f, "AT+QIACT?", "+QIACT: 1,1,1\r\nOK\r\n");
+    answer(f, "AT+QMTOPEN", "OK\r\n+QMTOPEN: 0,0\r\n");
+    answer(f, "AT+QMTCONN", "OK\r\n+QMTCONN: 0,0,0\r\n");
+    cycle(f);
+    assert(strncmp(f->command, "AT+QMTSUB", 9U) == 0);
+    snprintf(sub_response, sizeof(sub_response), "OK\r\n+QMTSUB: 0,%u,0,1\r\n",
+             f->mqtt.pending_sub_msg_id);
+    f->command[0] = 0;
+    feed(f, sub_response);
+    ++f->now;
+    cycle(f);
+    cycle(f);
+    assert(ABoxMqttEc800_IsReady(&f->mqtt));
+}
+
+int main(void)
+{
+    Fixture f;
+    ABoxEc800AtPort port;
+    ABoxMqttEc800Config config;
+    ABoxMqttEc800Buffers buffers;
+    ABoxMqttEc800Callbacks callbacks;
+    ABoxMqttEc800Counters counters;
+    static uint8_t header[128], topic[128], payload[128], outgoing[64];
+    static const char *subscriptions[] = {"a/b"};
+    uint64_t operation = 0U;
+    size_t capacity = 0U;
+    memset(&f, 0, sizeof(f));
+    memset(&port, 0, sizeof(port));
+    memset(&config, 0, sizeof(config));
+    memset(&buffers, 0, sizeof(buffers));
+    memset(&callbacks, 0, sizeof(callbacks));
+    port.context = &f; port.tick_ms = tick; port.write = write_bytes;
+    assert(ABoxEc800At_Init(&f.at, &port));
+    config.apn = "CMNET"; config.host = "broker.example";
+    config.client_id = "device"; config.username = "user";
+    config.password = "secret"; config.port = 1883U;
+    config.subscriptions = subscriptions; config.subscription_count = 1U;
+    config.command_timeout_ms = 100U; config.open_timeout_ms = 1000U;
+    config.connect_timeout_ms = 1000U; config.subscribe_timeout_ms = 1000U;
+    config.publish_timeout_ms = 1000U; config.retry_delay_ms = 100U;
+    buffers.header = header; buffers.header_capacity = sizeof(header);
+    buffers.topic = topic; buffers.topic_capacity = sizeof(topic);
+    buffers.payload = payload; buffers.payload_capacity = sizeof(payload);
+    buffers.publish_payload = outgoing; buffers.publish_capacity = sizeof(outgoing);
+    callbacks.user = &f; callbacks.message = incoming;
+    callbacks.publish_event = published;
+    assert(ABoxMqttEc800_Init(&f.mqtt, &f.at, &config, &buffers, &callbacks, 0U));
+    ABoxMqttEc800_SetSecurityReady(&f.mqtt, 1U);
+    assert(ABoxMqttEc800_Start(&f.mqtt, 0U));
+    connect_session(&f);
+    feed(&f, "+QMTRECV: 0,0,\"a/b\",4,test\r\n");
+    assert(f.messages == 1U);
+    assert(ABoxMqttEc800_Publish(&f.mqtt, "a/b",
+                                 (const uint8_t *)"hello", 5U, 1U, 0U,
+                                 &operation));
+    cycle(&f);
+    assert(!strncmp(f.command, "AT+QMTPUBEX", 11U));
+    feed(&f, "> ");
+    assert(f.submitted == 1U && f.sent_length == 5U);
+    assert(!memcmp(f.sent_payload, "hello", 5U));
+    feed(&f, "\r\n+QMTPUBEX: 0,1,0\r\n");
+    assert(f.confirmed == 1U && f.last_operation == operation);
+    feed(&f, "+QMTPUBEX: 0,1,0\r\n");
+    ABoxMqttEc800_GetCounters(&f.mqtt, &counters);
+    assert(counters.stale_publish == 1U);
+    assert(ABoxMqttEc800_Pause(&f.mqtt, f.now) == 0);
+    answer(&f, "AT+QMTDISC", "+QMTDISC: 0,0\r\n");
+    answer(&f, "AT+QMTCLOSE", "+QMTCLOSE: 0,0\r\n");
+    assert(ABoxMqttEc800_Pause(&f.mqtt, f.now) == 0);
+    f.now += 1500U;
+    cycle(&f);
+    assert(ABoxMqttEc800_GetState(&f.mqtt) == ABOX_MQTT_EC800_PAUSED);
+    assert(ABoxMqttEc800_BorrowWorkspace(&f.mqtt, &capacity) == payload);
+    assert(capacity == sizeof(payload));
+    assert(ABoxMqttEc800_ReturnWorkspace(&f.mqtt));
+    assert(ABoxMqttEc800_Configure(&f.mqtt, &config));
+    assert(ABoxMqttEc800_Resume(&f.mqtt, f.now));
+    connect_session(&f);
+    feed(&f, "+QMTSTAT: 0,1\r\n");
+    cycle(&f);
+    answer(&f, "AT+QMTDISC", "+QMTDISC: 0,0\r\n");
+    answer(&f, "AT+QMTCLOSE", "+QMTCLOSE: 0,0\r\n");
+    cycle(&f);
+    assert(ABoxMqttEc800_GetState(&f.mqtt) == ABOX_MQTT_EC800_RETRY_WAIT);
+    feed(&f, "+QMTPUBEX: 0,1,0\r\n");
+    f.now += 1500U;
+    cycle(&f);
+    connect_session(&f);
+    ABoxMqttEc800_GetCounters(&f.mqtt, &counters);
+    assert(counters.reconnects == 1U);
+    assert(ABoxMqttEc800_Publish(&f.mqtt, "a/b",
+                                 (const uint8_t *)"late", 4U, 1U, 0U,
+                                 &operation));
+    cycle(&f);
+    f.now += 1001U;
+    cycle(&f);
+    assert(f.failed == 1U);
+    assert(ABoxMqttEc800_GetState(&f.mqtt) == ABOX_MQTT_EC800_BLOCKED);
+    assert(!ABoxMqttEc800_IsReady(&f.mqtt));
+    ABoxMqttEc800_GetCounters(&f.mqtt, &counters);
+    assert(counters.publish_timeout == 1U);
+    ABoxEc800At_Reset(&f.at);
+    ABoxMqttEc800_OnModemReset(&f.mqtt, f.now);
+    connect_session(&f);
+    memset(&f, 0, sizeof(f));
+    assert(ABoxEc800At_Init(&f.at, &port));
+    assert(ABoxMqttEc800_Init(&f.mqtt, &f.at, &config, &buffers, &callbacks, 0U));
+    ABoxMqttEc800_SetSecurityReady(&f.mqtt, 1U);
+    assert(ABoxMqttEc800_Start(&f.mqtt, 0U));
+    answer(&f, "ATE0", "OK\r\n");
+    answer(&f, "AT+QMTCFG", "OK\r\n");
+    answer(&f, "AT+CEREG?", "+CEREG: 0,1\r\nOK\r\n");
+    answer(&f, "AT+CGATT?", "+CGATT: 1\r\nOK\r\n");
+    answer(&f, "AT+QIACT?", "+QIACT: 1,1,1\r\nOK\r\n");
+    answer(&f, "AT+QMTOPEN", "OK\r\n+QMTOPEN: 0,0\r\n");
+    answer(&f, "AT+QMTCONN", "OK\r\n+QMTCONN: 0,0,0\r\n");
+    answer(&f, "AT+QMTSUB", "OK\r\n+QMTSUB: 0,1,2\r\n");
+    assert(ABoxMqttEc800_GetState(&f.mqtt) == ABOX_MQTT_EC800_CLOSING);
+    answer(&f, "AT+QMTDISC", "+QMTDISC: 0,0\r\n");
+    answer(&f, "AT+QMTCLOSE", "+QMTCLOSE: 0,0\r\n");
+    assert(!ABoxMqttEc800_IsReady(&f.mqtt));
+    puts("abox_mqtt_ec800_test passed");
+    return 0;
+}

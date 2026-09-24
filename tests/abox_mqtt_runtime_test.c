@@ -7,7 +7,8 @@
 typedef struct {
     uint32_t now;
     uint8_t paused, security, connected, ready;
-    unsigned writes, revokes;
+    unsigned writes, revokes, transport_stops;
+    int transport_stop_result;
     char last_command[128];
 } Fixture;
 
@@ -28,6 +29,13 @@ static void set_security(void *context, uint8_t value) { ((Fixture *)context)->s
 static int apply(void *context, const ABoxMqttConfig *config)
 { (void)context; return config && config->host && config->port; }
 static void mqtt_task(void *context) { (void)context; }
+static int transport_stop(void *context, uint32_t now)
+{
+    Fixture *f = context;
+    (void)now;
+    ++f->transport_stops;
+    return f->transport_stop_result;
+}
 static uint8_t connected(void *context) { return ((Fixture *)context)->connected; }
 static uint8_t ready(void *context) { return ((Fixture *)context)->ready; }
 static uint8_t yes(void *context) { (void)context; return 1U; }
@@ -180,6 +188,39 @@ int main(void)
         ABoxMqttRuntime_OnModemReset(&reset_runtime, 5U);
         assert(ABoxMqttRuntime_GetState(&reset_runtime) == ABOX_MQTT_RUNTIME_BLOCKED);
         assert(!ABoxMqttRuntime_Stage(&reset_runtime, &next));
+    }
+    {
+        Fixture delegated = {0};
+        ABoxEc800At delegated_at;
+        ABoxMqttRuntime delegated_runtime;
+        at_port.context = &delegated;
+        port.user = &delegated;
+        port.mqtt_stop = transport_stop;
+        assert(ABoxEc800At_Init(&delegated_at, &at_port));
+        assert(ABoxMqttRuntime_Init(&delegated_runtime, &delegated_at, &port,
+                                    &options, &first, 0U));
+        delegated.connected = delegated.ready = 1U;
+        ABoxMqttRuntime_Poll(&delegated_runtime, 1U);
+        ABoxMqttRuntime_Poll(&delegated_runtime, 2U);
+        ABoxMqttRuntime_Poll(&delegated_runtime, 3U);
+        assert(ABoxMqttRuntime_IsReady(&delegated_runtime));
+        assert(ABoxMqttRuntime_Stage(&delegated_runtime, &next));
+        assert(ABoxMqttRuntime_Activate(&delegated_runtime, 4U));
+        ABoxMqttRuntime_Poll(&delegated_runtime, 5U);
+        assert(delegated.transport_stops == 1U && delegated.writes == 0U);
+        assert(delegated_runtime.state == ABOX_MQTT_RUNTIME_DISCONNECT);
+        delegated.transport_stop_result = 1;
+        ABoxMqttRuntime_Poll(&delegated_runtime, 6U);
+        assert(delegated_runtime.state == ABOX_MQTT_RUNTIME_PREPARED);
+        delegated.connected = delegated.ready = 1U;
+        ABoxMqttRuntime_Poll(&delegated_runtime, 7U);
+        ABoxMqttRuntime_Poll(&delegated_runtime, 8U);
+        ABoxMqttRuntime_Poll(&delegated_runtime, 9U);
+        assert(ABoxMqttRuntime_IsReady(&delegated_runtime));
+        assert(ABoxMqttRuntime_StopFirst(&delegated_runtime, 10U) == 0);
+        ABoxMqttRuntime_Poll(&delegated_runtime, 11U);
+        assert(delegated_runtime.state == ABOX_MQTT_RUNTIME_UNENROLLED);
+        assert(delegated.writes == 0U);
     }
     return 0;
 }
