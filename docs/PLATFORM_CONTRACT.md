@@ -23,7 +23,7 @@
 
 完整公共 Boot 目标包含 CubeMX `.ioc`、HAL/CMSIS、启动文件、链接脚本、STM32F105/EC800 硬件适配、构建脚本、校验脚本和冻结二进制。它只适用于文档声明的统一硬件与地址合同。
 
-平台仓库拥有正式 MQTT V4 公共报文、五个公共 Topic、QoS、请求幂等、心跳、Manifest、Core 命令和通用 Profile Registry 接口；MQTT V3 只作为存量迁移合同保留。具体 Profile 描述符、登记数据和业务 canonicalization 由产品仓库持有，平台通用组件不枚举产品 Profile。产品仓库继续拥有 App 的 CubeMX/HAL 工程、对应设备业务 Profile、CAN/RS485、执行器逻辑、产品配置页结构、App 侧 EC800 HAL/调度器端口适配、版本和发布包装。不同 MCU、Flash/RAM 容量、UART 或 EC800 电源引脚不得直接复用当前公共 Boot 二进制。
+平台仓库拥有正式 MQTT V4 公共报文、五个公共 Topic、QoS、请求幂等、心跳、Manifest、Core 命令，以及通用 Profile 接口、描述符结构、Registry 框架和公共校验能力；MQTT V3 只作为存量迁移合同保留。Registry 区分机制和数据：Platform 提供 Registry 框架，具体 Profile 实现、静态注册数据和业务 canonicalization 由产品仓库或独立产品扩展仓提供；公共组件不枚举或命名任何具体产品 Profile。产品仓库继续拥有 App 的 CubeMX/HAL 工程、对应设备业务 Profile、CAN/RS485、执行器逻辑、产品配置页结构、App 侧 EC800 HAL/调度器端口适配、版本和发布包装。不同 MCU、Flash/RAM 容量、UART 或 EC800 电源引脚不得直接复用当前公共 Boot 二进制。
 
 V3 到 V4 按项目整批切换。一个设备固件只运行一个公共协议版本；共用平台在跨项目迁移期间同时保留 V3/V4 Handler，并在 V4 心跳和 Manifest 均确认后才允许下发 V4 动作。协议文档和 Registry 的冻结不改变平台固件组件 API，因此不单独提升平台组件版本。
 
