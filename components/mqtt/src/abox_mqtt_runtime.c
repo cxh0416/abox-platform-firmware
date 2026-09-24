@@ -457,6 +457,8 @@ void ABoxMqttRuntime_OnModemReset(ABoxMqttRuntime *r, uint32_t now) {
   memset(&r->lease, 0, sizeof(r->lease));
   r->active_tls = 0;
   gate(r, 0);
+  if (r->callbacks.mqtt_modem_reset)
+    r->callbacks.mqtt_modem_reset(r->callbacks.user);
   if (stopping) {
     ABoxMqttRuntime_Block(r);
     return;

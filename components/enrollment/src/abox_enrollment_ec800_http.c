@@ -101,7 +101,10 @@ static void command_done(ABoxEc800Result result, void *user)
         break;
     case ABOX_ENROLL_HTTP_READ:
         if (h->response_length != h->expected_length) h->overflow = 1U;
-        stop_http(h);
+        /* QHTTPREAD's successful final URC completes and closes the session.
+         * QHTTPSTOP cancels an active request; some modem firmware rejects it
+         * after a completed read, which must not discard a valid response. */
+        finish(h, 1);
         break;
     default:
         stop_http(h);

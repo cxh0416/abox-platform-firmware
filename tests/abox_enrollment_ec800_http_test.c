@@ -52,13 +52,19 @@ int main(void)
     CHECK(strstr(sent, "QHTTPREAD") != NULL);
     feed(&at, "CONNECT\r\n");
     feed(&at, "{}\r\nOK\r\n+QHTTPREAD: 0\r\n");
-    ABoxEc800At_Task(&at);
-    CHECK(strstr(sent, "QHTTPSTOP") != NULL);
-    CHECK(result.calls == 0U); /* MQTT cannot start before HTTP cleanup. */
-    feed(&at, "OK\r\n");
     CHECK(result.calls == 1U && result.status == 201U && result.length == 2U && result.clean);
     CHECK(!strcmp(response, "{}"));
     CHECK(ABoxEnrollmentEc800Http_Ready(&http));
-    puts("EC800 HTTPS POST cleanup and bounded response passed");
+    CHECK(ABoxEnrollmentEc800Http_Post(&http, "https://ota.example/poll", "{}",
+                                       response, sizeof(response)));
+    ABoxEc800At_Task(&at);
+    CHECK(strstr(sent, "QSSLCFG") != NULL);
+    feed(&at, "ERROR\r\n");
+    ABoxEc800At_Task(&at);
+    CHECK(strstr(sent, "QHTTPSTOP") != NULL);
+    feed(&at, "OK\r\n");
+    CHECK(result.calls == 2U && result.status == 0U);
+    CHECK(ABoxEnrollmentEc800Http_Ready(&http));
+    puts("EC800 HTTPS POST completed read and next request passed");
     return 0;
 }

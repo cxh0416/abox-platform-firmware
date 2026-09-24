@@ -1,5 +1,6 @@
 #include "abox_mqtt_ec800.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -16,6 +17,7 @@ static void change(ABoxMqttEc800 *m, ABoxMqttEc800State state, uint32_t now)
     m->command_pending = 0U;
     m->command_result = CMD_NONE;
     m->urc_pending = URC_NONE;
+    m->urc_result = 0U;
     if (m->callbacks.state_changed)
         m->callbacks.state_changed(m->callbacks.user, state);
 }
@@ -43,6 +45,8 @@ static void done(ABoxEc800Result result, void *user)
         ++m->counters.command_failed;
         if (result == ABOX_EC800_RESULT_TIMEOUT)
             ABoxEc800At_Quarantine(m->at);
+        if (m->state == ABOX_MQTT_EC800_READY)
+            m->close_requested = 1U;
     }
 }
 
@@ -139,8 +143,10 @@ static void event(ABoxEc800Event kind, const uint8_t *bytes,
                                     m->buffers.publish_payload,
                                     m->publish_length))
             published(m, ABOX_MQTT_EC800_PUBLISH_SUBMITTED);
-        else
+        else {
             published(m, ABOX_MQTT_EC800_PUBLISH_FAILED);
+            m->close_requested = 1U;
+        }
         return;
     }
     count = numbers(line, "+QMTPUBEX:", &client, &id, &result);
@@ -153,12 +159,16 @@ static void event(ABoxEc800Event kind, const uint8_t *bytes,
         }
         published(m, result == 0 ? ABOX_MQTT_EC800_PUBLISH_CONFIRMED
                                   : ABOX_MQTT_EC800_PUBLISH_FAILED);
+        if (result != 0) m->close_requested = 1U;
         return;
     }
     count = numbers(line, "+QMTOPEN:", &client, &id, &result);
     if (count == 2 && m->state == ABOX_MQTT_EC800_OPENING &&
-        client == m->config.client_index)
+        client == m->config.client_index) {
         m->urc_pending = id == 0U ? URC_OK : URC_FAILED;
+        /* -1 is a failed open, not an established MQTT session. */
+        m->urc_result = id == UINT_MAX ? 1U : 0U;
+    }
     else if (count > 0 && !strncmp(line, "+QMTOPEN:", 9U))
         ++m->counters.urc_rejected;
     count = numbers(line, "+QMTCONN:", &client, &id, &result);
@@ -191,6 +201,12 @@ static void fail_closed(ABoxMqttEc800 *m, uint32_t now)
     if (m->command_pending || m->at->quarantined) {
         ABoxEc800At_Quarantine(m->at);
         change(m, ABOX_MQTT_EC800_BLOCKED, now);
+        return;
+    }
+    if (m->state == ABOX_MQTT_EC800_CONFIGURING) {
+        /* No MQTT session exists yet. Registration and PDP setup can be
+         * transient after modem power-up; QMTDISC/QMTCLOSE are invalid here. */
+        change(m, ABOX_MQTT_EC800_RETRY_WAIT, now);
         return;
     }
     m->close_step = 0U;
@@ -345,6 +361,13 @@ static void opening(ABoxMqttEc800 *m, uint32_t now)
         snprintf(command, sizeof(command), "AT+QMTOPEN=%u,\"%s\",%u",
                  m->config.client_index, m->config.host, m->config.port);
         (void)submit(m, command, m->config.open_timeout_ms);
+    }
+    if (m->urc_pending == URC_FAILED && m->urc_result == 1U &&
+        m->command_result == CMD_OK && !m->command_pending) {
+        /* QMTOPEN:-1 proves no socket was opened. Disconnect/close on this
+         * client return ERROR and must not quarantine an in-sync AT port. */
+        change(m, ABOX_MQTT_EC800_RETRY_WAIT, now);
+        return;
     }
     if (m->command_result == CMD_FAILED || m->urc_pending == URC_FAILED ||
         (uint32_t)(now - m->entered_ms) >= m->config.open_timeout_ms) {
@@ -557,23 +580,29 @@ int ABoxMqttEc800_Publish(ABoxMqttEc800 *m, const char *topic,
                            uint8_t qos, uint8_t retain, uint64_t *operation)
 {
     char command[200];
+    uint16_t msg_id;
     if (!m || !topic || !payload || !operation || !length ||
         length > m->buffers.publish_capacity || length > UINT16_MAX ||
         !valid_text(topic, 128U) || qos > 1U || retain > 1U ||
         m->state != ABOX_MQTT_EC800_READY || !m->security_ready ||
         m->publish_active || m->workspace_borrowed ||
         ABoxEc800At_IsBusy(m->at)) return 0;
-    ++m->next_msg_id;
-    if (!m->next_msg_id) ++m->next_msg_id;
+    /* Quectel requires msgid 0 for QoS 0. QoS 1 uses a nonzero ID for
+     * the modem's publish completion URC. */
+    if (qos) {
+        ++m->next_msg_id;
+        if (!m->next_msg_id) ++m->next_msg_id;
+    }
+    msg_id = qos ? m->next_msg_id : 0U;
     snprintf(command, sizeof(command), "AT+QMTPUBEX=%u,%u,%u,%u,\"%s\",%u",
-             m->config.client_index, m->next_msg_id, qos, retain,
+             m->config.client_index, msg_id, qos, retain,
              topic, (unsigned)length);
     memcpy(m->buffers.publish_payload, payload, length);
     if (!submit(m, command, m->config.publish_timeout_ms)) return 0;
     ++m->next_operation;
     if (!m->next_operation) ++m->next_operation;
     m->publish_operation = m->next_operation;
-    m->publish_msg_id = m->next_msg_id;
+    m->publish_msg_id = msg_id;
     m->publish_length = (uint16_t)length;
     m->publish_active = 1U;
     m->publish_prompt = 0U;

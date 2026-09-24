@@ -25,9 +25,17 @@
 
 `abox::mqtt_ec800` 使用调用方静态缓冲区和配置字符串，不分配堆内存，不生成产品 Topic。AT owner 必须为 MQTT；`ABoxEc800At_SetMqttReceiver` 在唯一 AT 接收入口将 `+QMTRECV` 转给公共解析器，OTA RAW 仍由 AT 层优先处理。正常模式只按长度交付；旧式 JSON 拼帧由 `legacy_json` 显式开启。
 
-`ABoxMqttEc800_Publish` 返回的是排队成功及操作标识，回调的 `SUBMITTED` 表示 payload 已交给模组，`CONFIRMED` 才表示收到对应消息 ID 的模组结果；两者均不能证明 Broker 或业务消费端已接收。发布超时或无法安全取消活动 AT 命令时锁定 AT，必须物理复位并调用 AT 与 transport 的复位入口后复用。
+`ABoxMqttEc800_Publish` 返回的是排队成功及操作标识。`QMTPUBEX` 的 QoS0 `msgid` 必须为 0；QoS1 使用非零递增 ID。回调的 `SUBMITTED` 表示 payload 已交给模组，`CONFIRMED` 表示收到对应消息 ID 的模组结果；两者均不能证明 Broker 或业务消费端已接收。发布超时或无法安全取消活动 AT 命令时锁定 AT，必须物理复位并调用 AT 与 transport 的复位入口后复用。
+
+旧式 `+QMTRECV` 的引号包裹 JSON 有两种实际形式：内部引号带反斜杠，或内部引号原样输出。兼容解析器在首字节为 `{`/`[` 时按第二字节区分，原样形式按 JSON 嵌套结束交付，避免仅把首个 `{` 送给产品协议解析器。发布返回失败时 transport 请求关闭重连；若关闭无法确认则进入 BLOCKED，产品需重启模组后才能继续使用 AT。
 
 `ABoxMqttEc800_Stop` 只有在 QMTDISC、QMTCLOSE 和迟到 URC 排空窗口结束后返回 1；返回 -1 表示状态不确定。配置更新只允许在 IDLE 或 PAUSED，工作区只允许在 PAUSED 且 AT 无未完成命令时借出，归还时重置 RX。runtime 提供可选 `mqtt_stop` 回调；产品接入时须使用此回调把关闭权交给 transport，避免 runtime 和 transport 双方各发一套 QMTDISC/QMTCLOSE。
+
+同时接入公共 runtime 和 transport 时，runtime 的 `mqtt_modem_reset` 回调须在收到 `RDY` 后于关闭安全门期间复位 transport，再重用保存的配置。否则 transport 可先进入 CONFIGURING，导致 runtime 的配置更新被拒绝并停在 FAILED。
+
+模组上电后 `CEREG` 可暂时为搜索中。transport 在配置阶段未建立 MQTT 会话，失败时进入重试等待，不发送此时无效的 `QMTDISC`/`QMTCLOSE`；已建立会话后的关闭仍按原有确认流程。
+
+`QMTOPEN` 的 AT `OK` 只确认命令受理。若随后收到同一 client 的 `+QMTOPEN: <client>,-1`，模组明确报告 socket 未打开；transport 进入迟到 URC 排空及重试等待，停止时可释放该 client，不向未建立的会话发送 `QMTDISC`/`QMTCLOSE`。其他打开失败或结果不确定时仍按原关闭及隔离流程处理。现场 TLS 候选曾在此失败后因两条无效关闭命令返回 `ERROR` 而误隔离 AT；修复后候选失败由 trial 恢复原连接并返回原请求的最终结果。
 
 当前独立主机测试覆盖正常连接、订阅、接收、发布、重复确认、关闭排空、断线重连、订阅失败、借还及发布超时后的锁定与复位。三个产品尚未启用该组件；这不是设备模组、Broker 或业务平台验收证据。
 

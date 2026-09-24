@@ -87,5 +87,15 @@ int main(void)
         feed(&rx, "+QMTRECV: 0,0,\"topic\",\"legacy\"\r\n", 1013U);
         assert(small.count == 3U && rx.counters.rejected >= 2U);
     }
+    memset(&f, 0, sizeof(f));
+    assert(ABoxMqttEc800Rx_Init(&rx, header, sizeof(header), topic,
+                                sizeof(topic), payload, sizeof(payload),
+                                1000U, 1U, message, &f));
+    feed(&rx, "+QMTRECV: 0,0,\"topic/raw\",\"{\"a\":1}\"\r\n", 2000U);
+    assert(f.count == 1U && f.payload_length == 7U);
+    assert(memcmp(f.payload, "{\"a\":1}", 7U) == 0);
+    feed(&rx, "+QMTRECV: 0,0,\"topic/raw\",7,\"{\"a\":1}\"\r\n", 2001U);
+    assert(f.count == 2U && f.payload_length == 7U);
+    assert(memcmp(f.payload, "{\"a\":1}", 7U) == 0);
     return 0;
 }

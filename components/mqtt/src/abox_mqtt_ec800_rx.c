@@ -5,7 +5,8 @@
 
 enum {
     RX_SEARCH, RX_HEADER, RX_AFTER_TOPIC, RX_LENGTH, RX_LENGTH_START, RX_RAW,
-    RX_QUOTED, RX_QUOTED_LENGTH, RX_JSON, RX_UNQUOTED, RX_DROP_LINE, RX_DROP_RAW,
+    RX_QUOTED, RX_QUOTED_LENGTH, RX_QUOTED_JSON_START, RX_JSON, RX_UNQUOTED,
+    RX_DROP_LINE, RX_DROP_RAW,
     RX_LOCKED
 };
 
@@ -230,6 +231,12 @@ void ABoxMqttEc800Rx_Feed(ABoxMqttEc800Rx *rx, const uint8_t *bytes,
         }
         if (rx->state == RX_QUOTED || rx->state == RX_QUOTED_LENGTH) {
             uint8_t length_quoted = rx->state == RX_QUOTED_LENGTH;
+            if (!rx->payload_length && (c == '{' || c == '[')) {
+                rx->json_depth = 1U;
+                rx->state = RX_QUOTED_JSON_START;
+                (void)append_payload(rx, c);
+                continue;
+            }
             if (rx->escaped) {
                 rx->escaped = 0U;
                 if (c == 'n') c = '\n';
@@ -249,6 +256,17 @@ void ABoxMqttEc800Rx_Feed(ABoxMqttEc800Rx *rx, const uint8_t *bytes,
                 reject(rx, 0U, 1U);
             continue;
         }
+        if (rx->state == RX_QUOTED_JSON_START) {
+            /* EC800 variants emit either escaped JSON or raw JSON inside
+             * the outer quoted payload. The first byte after '{' or '['
+             * distinguishes the forms without copying the full message. */
+            if (c == '\\') {
+                rx->state = rx->expected ? RX_QUOTED_LENGTH : RX_QUOTED;
+                rx->escaped = 1U;
+                continue;
+            }
+            rx->state = RX_JSON;
+        }
         if (rx->state == RX_JSON) {
             if (rx->in_string) {
                 if (rx->escaped) rx->escaped = 0U;
@@ -261,7 +279,11 @@ void ABoxMqttEc800Rx_Feed(ABoxMqttEc800Rx *rx, const uint8_t *bytes,
                 --rx->json_depth;
             }
             if (!append_payload(rx, c)) continue;
-            if (rx->json_depth == 0U) deliver(rx);
+            if (rx->json_depth == 0U) {
+                if (rx->expected && rx->payload_length != rx->expected)
+                    reject(rx, 0U, 1U);
+                else deliver(rx);
+            }
             continue;
         }
         if (rx->state == RX_UNQUOTED) {

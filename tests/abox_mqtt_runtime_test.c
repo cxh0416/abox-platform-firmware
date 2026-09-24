@@ -7,7 +7,8 @@
 typedef struct {
     uint32_t now;
     uint8_t paused, security, connected, ready;
-    unsigned writes, revokes, transport_stops;
+    unsigned writes, revokes, transport_stops, modem_resets;
+    uint8_t reconfig_required;
     int transport_stop_result;
     char last_command[128];
 } Fixture;
@@ -27,8 +28,15 @@ static int write_at(void *context, const uint8_t *data, uint16_t length,
 static void set_paused(void *context, uint8_t value) { ((Fixture *)context)->paused = value; }
 static void set_security(void *context, uint8_t value) { ((Fixture *)context)->security = value; }
 static int apply(void *context, const ABoxMqttConfig *config)
-{ (void)context; return config && config->host && config->port; }
+{ return !((Fixture *)context)->reconfig_required && config && config->host && config->port; }
 static void mqtt_task(void *context) { (void)context; }
+static void transport_modem_reset(void *context)
+{
+    Fixture *f = context;
+    assert(f->paused && !f->security);
+    ++f->modem_resets;
+    f->reconfig_required = 0U;
+}
 static int transport_stop(void *context, uint32_t now)
 {
     Fixture *f = context;
@@ -169,6 +177,28 @@ int main(void)
         assert(ABoxMqttRuntime_StopFirst(&tls_runtime, now) == 1);
         assert(!ABoxMqttRuntime_IsTlsActive(&tls_runtime));
         assert(tls_runtime.lease.generation == 0U);
+    }
+    {
+        Fixture live_reset = {0};
+        ABoxEc800At live_at;
+        ABoxMqttRuntime live_runtime;
+        at_port.context = &live_reset;
+        port.user = &live_reset;
+        port.mqtt_modem_reset = transport_modem_reset;
+        assert(ABoxEc800At_Init(&live_at, &at_port));
+        assert(ABoxMqttRuntime_Init(&live_runtime, &live_at, &port, &options,
+                                    &first, 0U));
+        live_reset.connected = live_reset.ready = 1U;
+        ABoxMqttRuntime_Poll(&live_runtime, 1U);
+        ABoxMqttRuntime_Poll(&live_runtime, 2U);
+        ABoxMqttRuntime_Poll(&live_runtime, 3U);
+        assert(ABoxMqttRuntime_IsReady(&live_runtime));
+        live_reset.reconfig_required = 1U;
+        ABoxEc800At_Feed(&live_at, (const uint8_t *)"RDY\r\n", 5U);
+        assert(live_reset.modem_resets == 1U);
+        assert(live_runtime.state == ABOX_MQTT_RUNTIME_PREPARED);
+        assert(!live_reset.paused && live_reset.security);
+        port.mqtt_modem_reset = 0;
     }
     {
         Fixture reset_fixture = {0};
