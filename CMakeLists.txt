@@ -52,6 +52,10 @@ add_library(abox_mqtt_v4 STATIC
 add_library(abox::mqtt_v4 ALIAS abox_mqtt_v4)
 target_include_directories(abox_mqtt_v4 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
+add_library(abox_mqtt_ec800_rx STATIC components/mqtt/abox_mqtt_ec800_rx.c)
+add_library(abox::mqtt_ec800_rx ALIAS abox_mqtt_ec800_rx)
+target_include_directories(abox_mqtt_ec800_rx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
 add_library(abox_https_ufs_downloader STATIC
     components/ota/abox_https_ufs_downloader.c
 )
@@ -165,6 +169,10 @@ if(BUILD_TESTING AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     add_executable(abox_mqtt_runtime_test tests/abox_mqtt_runtime_test.c)
     target_link_libraries(abox_mqtt_runtime_test PRIVATE abox::mqtt_runtime)
     add_test(NAME abox_mqtt_runtime_test COMMAND abox_mqtt_runtime_test)
+
+    add_executable(abox_mqtt_ec800_rx_test tests/abox_mqtt_ec800_rx_test.c)
+    target_link_libraries(abox_mqtt_ec800_rx_test PRIVATE abox::mqtt_ec800_rx)
+    add_test(NAME abox_mqtt_ec800_rx_test COMMAND abox_mqtt_ec800_rx_test)
 
     add_executable(abox_https_ufs_downloader_test tests/abox_https_ufs_downloader_test.c)
     target_link_libraries(abox_https_ufs_downloader_test PRIVATE abox::https_ufs_downloader)
