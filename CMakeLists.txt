@@ -135,6 +135,9 @@ target_include_directories(abox_enrollment_ec800_http PUBLIC ${CMAKE_CURRENT_SOU
 target_link_libraries(abox_enrollment_ec800_http PUBLIC abox::ec800)
 
 if(BUILD_TESTING AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    add_test(NAME abox_component_contract_test
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake_component_contract_test.py)
     add_executable(abox_enrollment_test tests/abox_enrollment_test.c)
     target_link_libraries(abox_enrollment_test PRIVATE abox::enrollment)
     add_test(NAME abox_enrollment_test COMMAND abox_enrollment_test)
