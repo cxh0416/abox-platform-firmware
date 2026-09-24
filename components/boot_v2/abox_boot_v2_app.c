@@ -89,7 +89,7 @@ typedef struct {
     uint32_t last_error;
     uint8_t mqtt_client_index;
     uint8_t workspace_borrowed;
-    char last_command[80];
+    char last_command[64];
     uint32_t retry_due;
     char url[ABOX_BOOT_V2_APP_URL_SIZE];
     char version[ABOX_BOOT_V2_APP_VERSION_SIZE];
