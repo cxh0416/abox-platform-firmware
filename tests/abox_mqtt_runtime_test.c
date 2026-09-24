@@ -88,16 +88,27 @@ int main(void)
     f.ready = 1U; ABoxMqttRuntime_Poll(&runtime, 10U);
     assert(ABoxMqttRuntime_IsReady(&runtime));
     assert(strcmp(ABoxMqttRuntime_ActiveConfig(&runtime)->host, "next.example") == 0);
-    assert(ABoxMqttRuntime_StopFirst(&runtime, 11U) == 0);
-    ABoxMqttRuntime_Poll(&runtime, 12U);
+    assert(ABoxEc800At_Submit(&at, "AT+CSQ", 30U, ABOX_EC800_PRIORITY_NORMAL,
+                             5000U, 0, 0));
     ABoxEc800At_Task(&at);
-    ABoxEc800At_Feed(&at, disc, (uint16_t)(sizeof(disc) - 1U));
+    assert(ABoxMqttRuntime_StopFirst(&runtime, 11U) == 0);
+    assert(f.paused && !f.security && f.revokes == 2U);
+    ABoxMqttRuntime_Poll(&runtime, 12U);
+    assert(ABoxMqttRuntime_GetState(&runtime) == ABOX_MQTT_RUNTIME_STOP_WAIT_DRAIN);
+    ABoxEc800At_Feed(&at, (const uint8_t *)"OK\r\n", 4U);
     ABoxMqttRuntime_Poll(&runtime, 13U);
+    assert(ABoxMqttRuntime_GetState(&runtime) == ABOX_MQTT_RUNTIME_STOP_DISCONNECT);
     ABoxMqttRuntime_Poll(&runtime, 14U);
     ABoxEc800At_Task(&at);
-    ABoxEc800At_Feed(&at, close, (uint16_t)(sizeof(close) - 1U));
+    assert(strstr(f.last_command, "AT+QMTDISC=0") != 0);
+    ABoxEc800At_Feed(&at, disc, (uint16_t)(sizeof(disc) - 1U));
     ABoxMqttRuntime_Poll(&runtime, 15U);
-    assert(ABoxMqttRuntime_StopFirst(&runtime, 16U) == 1);
+    ABoxMqttRuntime_Poll(&runtime, 16U);
+    ABoxEc800At_Task(&at);
+    assert(strstr(f.last_command, "AT+QMTCLOSE=0") != 0);
+    ABoxEc800At_Feed(&at, close, (uint16_t)(sizeof(close) - 1U));
+    ABoxMqttRuntime_Poll(&runtime, 17U);
+    assert(ABoxMqttRuntime_StopFirst(&runtime, 18U) == 1);
     assert(ABoxMqttRuntime_GetState(&runtime) == ABOX_MQTT_RUNTIME_UNENROLLED);
     assert(ABoxMqttRuntime_ActiveConfig(&runtime) == 0);
     ABoxMqttRuntime_Block(&runtime);
@@ -150,6 +161,25 @@ int main(void)
         assert(ABoxMqttRuntime_StopFirst(&tls_runtime, now) == 1);
         assert(!ABoxMqttRuntime_IsTlsActive(&tls_runtime));
         assert(tls_runtime.lease.generation == 0U);
+    }
+    {
+        Fixture reset_fixture = {0};
+        ABoxEc800At reset_at;
+        ABoxMqttRuntime reset_runtime;
+        at_port.context = &reset_fixture;
+        port.user = &reset_fixture;
+        assert(ABoxEc800At_Init(&reset_at, &at_port));
+        assert(ABoxMqttRuntime_Init(&reset_runtime, &reset_at, &port, &options,
+                                    &first, 0U));
+        reset_fixture.connected = reset_fixture.ready = 1U;
+        ABoxMqttRuntime_Poll(&reset_runtime, 1U);
+        ABoxMqttRuntime_Poll(&reset_runtime, 2U);
+        ABoxMqttRuntime_Poll(&reset_runtime, 3U);
+        assert(ABoxMqttRuntime_IsReady(&reset_runtime));
+        assert(ABoxMqttRuntime_StopFirst(&reset_runtime, 4U) == 0);
+        ABoxMqttRuntime_OnModemReset(&reset_runtime, 5U);
+        assert(ABoxMqttRuntime_GetState(&reset_runtime) == ABOX_MQTT_RUNTIME_BLOCKED);
+        assert(!ABoxMqttRuntime_Stage(&reset_runtime, &next));
     }
     return 0;
 }

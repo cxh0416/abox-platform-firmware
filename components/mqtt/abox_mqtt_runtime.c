@@ -47,6 +47,7 @@ static void fail(ABoxMqttRuntime *r, const char *x) {
   r->waiting = 0;
   if (r->state == ABOX_MQTT_RUNTIME_DISCONNECT ||
       r->state == ABOX_MQTT_RUNTIME_UNBIND ||
+      r->state == ABOX_MQTT_RUNTIME_STOP_WAIT_DRAIN ||
       r->state == ABOX_MQTT_RUNTIME_STOP_DISCONNECT ||
       r->state == ABOX_MQTT_RUNTIME_STOP_CLOSE ||
       r->state == ABOX_MQTT_RUNTIME_STOP_UNBIND ||
@@ -209,7 +210,7 @@ int ABoxMqttRuntime_StopFirst(ABoxMqttRuntime *r, uint32_t now)
   if (!r || !r->initialized) return -1;
   if (r->state == ABOX_MQTT_RUNTIME_UNENROLLED) return 1;
   if (r->blocked || r->state == ABOX_MQTT_RUNTIME_BLOCKED) return -1;
-  if (r->state >= ABOX_MQTT_RUNTIME_STOP_DISCONNECT &&
+  if (r->state >= ABOX_MQTT_RUNTIME_STOP_WAIT_DRAIN &&
       r->state <= ABOX_MQTT_RUNTIME_STOP_UNBIND) return 0;
   if (r->state != ABOX_MQTT_RUNTIME_READY &&
       r->state != ABOX_MQTT_RUNTIME_FAILED &&
@@ -218,14 +219,12 @@ int ABoxMqttRuntime_StopFirst(ABoxMqttRuntime *r, uint32_t now)
     ABoxMqttRuntime_Block(r);
     return -1;
   }
-  if (ABoxEc800At_IsBusy(r->adapter.at) ||
-      r->adapter.result == ABOX_ASYNC_PENDING) return 0;
   if (r->callbacks.before_network_change)
     r->callbacks.before_network_change(r->callbacks.user);
   gate(r, 0);
   r->waiting = 0U;
   r->started = now;
-  state(r, ABOX_MQTT_RUNTIME_STOP_DISCONNECT, "stop-disconnect");
+  state(r, ABOX_MQTT_RUNTIME_STOP_WAIT_DRAIN, "stop-wait-drain");
   return 0;
 }
 void ABoxMqttRuntime_Block(ABoxMqttRuntime *r)
@@ -250,6 +249,13 @@ static void stop_poll(ABoxMqttRuntime *r, uint32_t now)
   char command[32];
   ABoxAsyncStatus result;
   uint8_t client = r->active_tls ? r->options.tls_client : r->options.plain_client;
+  if (r->state == ABOX_MQTT_RUNTIME_STOP_WAIT_DRAIN) {
+    if (r->adapter.at->quarantined) { fail(r, "stop-drain"); return; }
+    if (ABoxEc800At_IsBusy(r->adapter.at) ||
+        r->adapter.result == ABOX_ASYNC_PENDING) return;
+    state(r, ABOX_MQTT_RUNTIME_STOP_DISCONNECT, "stop-disconnect");
+    return;
+  }
   if (r->state == ABOX_MQTT_RUNTIME_STOP_UNBIND) {
     ABoxMqttTls_Poll(&r->mqtt_tls, now);
     result = r->mqtt_tls.status;
@@ -296,7 +302,7 @@ void ABoxMqttRuntime_Poll(ABoxMqttRuntime *r, uint32_t now) {
       r->state == ABOX_MQTT_RUNTIME_UNENROLLED ||
       r->state == ABOX_MQTT_RUNTIME_BLOCKED)
     return;
-  if (r->state >= ABOX_MQTT_RUNTIME_STOP_DISCONNECT &&
+  if (r->state >= ABOX_MQTT_RUNTIME_STOP_WAIT_DRAIN &&
       r->state <= ABOX_MQTT_RUNTIME_STOP_UNBIND) {
     stop_poll(r, now);
     return;
@@ -408,14 +414,21 @@ void ABoxMqttRuntime_Poll(ABoxMqttRuntime *r, uint32_t now) {
   }
 }
 void ABoxMqttRuntime_OnModemReset(ABoxMqttRuntime *r, uint32_t now) {
+  uint8_t stopping;
   if (!r || !r->initialized)
     return;
+  stopping = r->state >= ABOX_MQTT_RUNTIME_STOP_WAIT_DRAIN &&
+             r->state <= ABOX_MQTT_RUNTIME_STOP_UNBIND;
   ABoxEc800CommandAdapter_OnModemReset(&r->adapter);
   ABoxEc800Tls_OnModemReset(&r->tls);
   ABoxMqttTls_OnModemReset(&r->mqtt_tls);
   memset(&r->lease, 0, sizeof(r->lease));
   r->active_tls = 0;
   gate(r, 0);
+  if (stopping) {
+    ABoxMqttRuntime_Block(r);
+    return;
+  }
   if (r->blocked) {
     state(r, ABOX_MQTT_RUNTIME_BLOCKED, "recovery-required");
     return;
