@@ -81,6 +81,8 @@ static void connect_session(Fixture *f)
     char sub_response[48];
     answer(f, "ATE0", "OK\r\n");
     answer(f, "AT+QMTCFG", "OK\r\n");
+    answer(f, "AT+QMTCFG=\"version\",0,4", "OK\r\n");
+    answer(f, "AT+QMTCFG=\"pdpcid\",0,1", "OK\r\n");
     answer(f, "AT+CEREG?", "+CEREG: 0,1\r\nOK\r\n");
     answer(f, "AT+CGATT?", "+CGATT: 1\r\nOK\r\n");
     answer(f, "AT+QIACT?", "+QIACT: 1,1,1\r\nOK\r\n");
@@ -124,6 +126,7 @@ int main(void)
     config.command_timeout_ms = 100U; config.open_timeout_ms = 1000U;
     config.connect_timeout_ms = 1000U; config.subscribe_timeout_ms = 1000U;
     config.publish_timeout_ms = 1000U; config.retry_delay_ms = 100U;
+    config.mqtt_version = 4U; config.pdp_context_id = 1U;
     buffers.header = header; buffers.header_capacity = sizeof(header);
     buffers.topic = topic; buffers.topic_capacity = sizeof(topic);
     buffers.payload = payload; buffers.payload_capacity = sizeof(payload);
@@ -195,6 +198,8 @@ int main(void)
     assert(ABoxMqttEc800_Start(&f.mqtt, 0U));
     answer(&f, "ATE0", "OK\r\n");
     answer(&f, "AT+QMTCFG", "OK\r\n");
+    answer(&f, "AT+QMTCFG=\"version\",0,4", "OK\r\n");
+    answer(&f, "AT+QMTCFG=\"pdpcid\",0,1", "OK\r\n");
     answer(&f, "AT+CEREG?", "+CEREG: 0,1\r\nOK\r\n");
     answer(&f, "AT+CGATT?", "+CGATT: 1\r\nOK\r\n");
     answer(&f, "AT+QIACT?", "+QIACT: 1,1,1\r\nOK\r\n");

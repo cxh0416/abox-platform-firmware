@@ -37,6 +37,8 @@ typedef struct {
     uint32_t command_timeout_ms, open_timeout_ms, connect_timeout_ms;
     uint32_t subscribe_timeout_ms, publish_timeout_ms, retry_delay_ms;
     uint8_t legacy_json;
+    /* Zero leaves the modem setting unchanged. */
+    uint8_t mqtt_version, pdp_context_id;
 } ABoxMqttEc800Config;
 
 typedef struct {
