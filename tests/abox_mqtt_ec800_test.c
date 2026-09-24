@@ -217,6 +217,24 @@ int main(void)
     answer(&f, "AT+QMTDISC", "+QMTDISC: 0,0\r\n");
     answer(&f, "AT+QMTCLOSE", "+QMTCLOSE: 0,0\r\n");
     assert(!ABoxMqttEc800_IsReady(&f.mqtt));
+    memset(&f, 0, sizeof(f));
+    assert(ABoxEc800At_Init(&f.at, &port));
+    assert(ABoxMqttEc800_Init(&f.mqtt, &f.at, &config, &buffers, &callbacks, 0U));
+    ABoxMqttEc800_SetSecurityReady(&f.mqtt, 1U);
+    assert(ABoxMqttEc800_Start(&f.mqtt, 0U));
+    cycle(&f);
+    assert(!strncmp(f.command, "ATE0", 4U));
+    assert(ABoxMqttEc800_Stop(&f.mqtt, f.now) == 0);
+    assert(ABoxMqttEc800_GetState(&f.mqtt) != ABOX_MQTT_EC800_BLOCKED);
+    feed(&f, "OK\r\n");
+    cycle(&f);
+    assert(ABoxMqttEc800_GetState(&f.mqtt) == ABOX_MQTT_EC800_CLOSING);
+    f.command[0] = 0;
+    answer(&f, "AT+QMTDISC", "+QMTDISC: 0,0\r\n");
+    answer(&f, "AT+QMTCLOSE", "+QMTCLOSE: 0,0\r\n");
+    f.now += 1500U;
+    cycle(&f);
+    assert(ABoxMqttEc800_Stop(&f.mqtt, f.now) == 1);
     puts("abox_mqtt_ec800_test passed");
     return 0;
 }

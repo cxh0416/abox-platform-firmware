@@ -443,11 +443,15 @@ void ABoxMqttEc800_Poll(ABoxMqttEc800 *m, uint32_t now)
             change(m, ABOX_MQTT_EC800_BLOCKED, now);
         return;
     }
+    if (m->close_requested && m->state != ABOX_MQTT_EC800_CLOSING &&
+        m->state != ABOX_MQTT_EC800_RETRY_WAIT) {
+        if (m->command_pending) return;
+        m->close_requested = 0U;
+        fail_closed(m, now);
+        return;
+    }
     if (m->state == ABOX_MQTT_EC800_READY) {
-        if (m->close_requested) {
-            m->close_requested = 0U;
-            fail_closed(m, now);
-        } else if (m->publish_active &&
+        if (m->publish_active &&
                    (uint32_t)(now - m->last_publish_ms) >=
                    m->config.publish_timeout_ms) {
             ++m->counters.publish_timeout;
@@ -493,7 +497,8 @@ void ABoxMqttEc800_RequestReconnect(ABoxMqttEc800 *m, uint32_t now)
     if (!m || !m->initialized || m->state == ABOX_MQTT_EC800_BLOCKED) return;
     m->enabled = 1U;
     ++m->generation;
-    fail_closed(m, now);
+    if (m->command_pending) m->close_requested = 1U;
+    else fail_closed(m, now);
 }
 
 int ABoxMqttEc800_Stop(ABoxMqttEc800 *m, uint32_t now)
@@ -504,7 +509,10 @@ int ABoxMqttEc800_Stop(ABoxMqttEc800 *m, uint32_t now)
     if (m->state == ABOX_MQTT_EC800_IDLE ||
         m->state == ABOX_MQTT_EC800_PAUSED) return 1;
     if (m->state == ABOX_MQTT_EC800_RETRY_WAIT) return 0;
-    if (m->state != ABOX_MQTT_EC800_CLOSING) fail_closed(m, now);
+    if (m->state != ABOX_MQTT_EC800_CLOSING) {
+        if (m->command_pending) m->close_requested = 1U;
+        else fail_closed(m, now);
+    }
     return m->state == ABOX_MQTT_EC800_BLOCKED ? -1 : 0;
 }
 
