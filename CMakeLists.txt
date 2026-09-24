@@ -162,6 +162,10 @@ if(BUILD_TESTING AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     target_link_libraries(abox_mqtt_v4_contract_test PRIVATE abox::mqtt_v4)
     add_test(NAME abox_mqtt_v4_contract_test COMMAND abox_mqtt_v4_contract_test)
 
+    add_executable(abox_mqtt_runtime_test tests/abox_mqtt_runtime_test.c)
+    target_link_libraries(abox_mqtt_runtime_test PRIVATE abox::mqtt_runtime)
+    add_test(NAME abox_mqtt_runtime_test COMMAND abox_mqtt_runtime_test)
+
     add_executable(abox_https_ufs_downloader_test tests/abox_https_ufs_downloader_test.c)
     target_link_libraries(abox_https_ufs_downloader_test PRIVATE abox::https_ufs_downloader)
     add_test(NAME abox_https_ufs_downloader_test COMMAND abox_https_ufs_downloader_test)

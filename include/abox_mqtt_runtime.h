@@ -31,7 +31,12 @@ typedef enum {
   ABOX_MQTT_RUNTIME_CONNECT,
   ABOX_MQTT_RUNTIME_CONNECTED,
   ABOX_MQTT_RUNTIME_READY,
-  ABOX_MQTT_RUNTIME_FAILED
+  ABOX_MQTT_RUNTIME_FAILED,
+  ABOX_MQTT_RUNTIME_STOP_DISCONNECT,
+  ABOX_MQTT_RUNTIME_STOP_CLOSE,
+  ABOX_MQTT_RUNTIME_STOP_UNBIND,
+  ABOX_MQTT_RUNTIME_UNENROLLED,
+  ABOX_MQTT_RUNTIME_BLOCKED
 } ABoxMqttRuntimeState;
 typedef struct {
   void *user;
@@ -67,6 +72,7 @@ typedef struct {
   ABoxMqttRuntimeState state;
   uint32_t started;
   uint8_t waiting, disconnect_step, active_tls, initialized, candidate_staged, recovering;
+  uint8_t blocked;
   ABoxMqttConfig requested, active;
   char host[64], username[32], password[64];
   char active_host[64], active_username[32], active_password[64];
@@ -80,6 +86,13 @@ int ABoxMqttRuntime_Stage(ABoxMqttRuntime *, const ABoxMqttConfig *);
 int ABoxMqttRuntime_Activate(ABoxMqttRuntime *, uint32_t);
 int ABoxMqttRuntime_Apply(ABoxMqttRuntime *, const ABoxMqttConfig *, uint32_t);
 int ABoxMqttRuntime_Restore(ABoxMqttRuntime *, const ABoxMqttConfig *, uint32_t);
+/* Returns 1 when fully stopped, 0 while stopping or waiting for AT to drain,
+ * and -1 when cleanup is uncertain. Poll must continue after a 0 result. */
+int ABoxMqttRuntime_StopFirst(ABoxMqttRuntime *, uint32_t);
+void ABoxMqttRuntime_Block(ABoxMqttRuntime *);
+int ABoxMqttRuntime_RecoveryComplete(ABoxMqttRuntime *);
+ABoxMqttRuntimeState ABoxMqttRuntime_GetState(const ABoxMqttRuntime *);
+uint8_t ABoxMqttRuntime_IsTlsActive(const ABoxMqttRuntime *);
 void ABoxMqttRuntime_OnModemReset(ABoxMqttRuntime *, uint32_t);
 uint8_t ABoxMqttRuntime_IsReady(const ABoxMqttRuntime *);
 uint8_t ABoxMqttRuntime_ActiveClient(const ABoxMqttRuntime *);

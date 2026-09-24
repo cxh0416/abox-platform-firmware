@@ -1,5 +1,5 @@
-#ifndef SWEEPER_OTA_CA_PEM_H
-#define SWEEPER_OTA_CA_PEM_H
+#ifndef ABOX_BOOT_V2_CA_PEM_H
+#define ABOX_BOOT_V2_CA_PEM_H
 
 /* HTTPS uses ISRG Root YE. MQTT TLS uses the EC800-compatible ZXWL RSA root. */
 static const char g_ota_ca_pem[] =
