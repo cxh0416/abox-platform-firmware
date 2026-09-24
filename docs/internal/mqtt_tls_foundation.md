@@ -117,12 +117,12 @@ WAIT_ACCEPT -> PREPARING -> CONNECTING -> SUBSCRIBING -> VERIFYING -> COMMITTING
 
 ## 验证与复现
 
-主机构建：
+主机构建复现（新执行统一复用 `build/host-mingw/`；下方 `out/` 路径仅记录当时的历史产物）：
 
 ```powershell
-cmake -S . -B build-mqtt-foundation -G Ninja -DCMAKE_C_COMPILER=D:/MinGW/bin/gcc.exe -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
-cmake --build build-mqtt-foundation
-ctest --test-dir build-mqtt-foundation --output-on-failure
+cmake -S . -B build/host-mingw -G Ninja -DCMAKE_C_COMPILER=D:/MinGW/bin/gcc.exe -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+cmake --build build/host-mingw
+ctest --test-dir build/host-mingw --output-on-failure
 ```
 
 测试覆盖：context 1 保留、相同/不同 owner 冲突、租约代次、pin 与不可重配、

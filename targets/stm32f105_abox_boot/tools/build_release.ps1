@@ -3,7 +3,8 @@ param([ValidateSet('Debug', 'Release')] [string] $Configuration = 'Release')
 
 $ErrorActionPreference = 'Stop'
 $targetRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-$build = Join-Path $targetRoot ("build/{0}" -f $Configuration)
+$platformRoot = (Resolve-Path -LiteralPath (Join-Path $targetRoot '..\..')).Path
+$build = Join-Path $platformRoot ("build/boot/{0}" -f $Configuration)
 $toolchain = Join-Path $targetRoot 'cmake/gcc-arm-none-eabi.cmake'
 $dist = Join-Path $targetRoot 'dist'
 

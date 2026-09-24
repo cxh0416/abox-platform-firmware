@@ -15,7 +15,7 @@
 - `tools/`：Flash 布局、产品矩阵、基线和产品发布校验工具。
 - `docs/`：平台合同、公共 MQTT V3/V4 协议、V4 Registry、产品迁移矩阵和基线记录。
 
-`build-host/` 和各目标下的 `build/` 是本地构建缓存，不属于平台源码。
+编译缓存统一放在根目录的 `build/` 下：主机测试复用 `build/host/`，公共 Boot 复用 `build/boot/Release/`（或 `Debug/`）。这些目录不属于平台源码。
 
 ## 公共 Boot
 
@@ -52,9 +52,9 @@ V4 Core 命令和已冻结 Profile 的唯一机器可校验登记入口是 [V4 R
 ## 构建与验证
 
 ```powershell
-cmake -S . -B build-host -G Ninja -DBUILD_TESTING=ON
-cmake --build build-host
-ctest --test-dir build-host --output-on-failure
+cmake -S . -B build/host -G Ninja -DBUILD_TESTING=ON
+cmake --build build/host
+ctest --test-dir build/host --output-on-failure
 
 powershell -ExecutionPolicy Bypass -File .\targets\stm32f105_abox_boot\tools\build_release.ps1
 python .\targets\stm32f105_abox_boot\tools\verify_boot_artifact.py `
