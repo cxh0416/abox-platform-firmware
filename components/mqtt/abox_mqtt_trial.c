@@ -15,6 +15,7 @@ static int config_valid(const ABoxMqttConfig *config)
     return config && config->host && config->host[0] && config->port &&
            config->username && config->password && config->tls_enabled <= 1U;
 }
+static void restore(ABoxMqttTrial *t, uint32_t now, ABoxMqttTrialReason reason);
 int ABoxMqttTrial_Start(ABoxMqttTrial *t, const ABoxMqttConfig *active,
                        const ABoxMqttConfig *candidate,
                        uint64_t proof, uint32_t now, uint32_t timeout, uint32_t restore_timeout)
@@ -28,6 +29,22 @@ int ABoxMqttTrial_Start(ABoxMqttTrial *t, const ABoxMqttConfig *active,
     t->session = ++t->serial; t->started = now; t->timeout = timeout;
     t->restore_timeout = restore_timeout; t->reason = ABOX_MQTT_TRIAL_REASON_NONE;
     t->state = ABOX_MQTT_TRIAL_WAIT_ACCEPT; return 1;
+}
+int ABoxMqttTrial_StartFirst(ABoxMqttTrial *t, const ABoxMqttConfig *candidate,
+                             uint64_t proof, uint32_t now)
+{
+    if (!t || !t->port.prepare || !config_valid(candidate) || !proof ||
+        running(t) || t->state == ABOX_MQTT_TRIAL_RESTORING ||
+        t->state == ABOX_MQTT_TRIAL_RESTORE_FAILED || t->serial == UINT64_MAX) return 0;
+    t->active = NULL; t->candidate = candidate; t->proof = proof;
+    t->session = ++t->serial; t->started = now; t->timeout = 120000U;
+    t->restore_timeout = 90000U; t->reason = ABOX_MQTT_TRIAL_REASON_NONE;
+    t->state = ABOX_MQTT_TRIAL_PREPARING;
+    if (!t->port.prepare(t->port.user, t->session, candidate)) {
+        restore(t, now, ABOX_MQTT_TRIAL_REASON_ERROR);
+        return 0;
+    }
+    return 1;
 }
 static void restore(ABoxMqttTrial *t, uint32_t now, ABoxMqttTrialReason reason)
 {

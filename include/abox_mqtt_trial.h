@@ -49,6 +49,12 @@ int ABoxMqttTrial_Start(ABoxMqttTrial *trial, const ABoxMqttConfig *active,
                        const ABoxMqttConfig *candidate,
                        uint64_t proof_id, uint32_t now, uint32_t timeout,
                        uint32_t restore_timeout);
+/* First enrollment has no old MQTT connection or ACK. restore receives NULL
+ * and must remove the candidate connection and restore the pre-enrollment
+ * identity/configuration before reporting RESTORED. */
+int ABoxMqttTrial_StartFirst(ABoxMqttTrial *trial,
+                            const ABoxMqttConfig *candidate,
+                            uint64_t proof_id, uint32_t now);
 /* Session correlates every event; PROVED additionally requires exact proof ID.
  * The trial timeout starts at ACCEPTED, after the old connection's response is
  * delivered. Call at event arrival time so an expired candidate cannot commit. */
