@@ -9,7 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def configure(name: str, arguments: str, success: bool, diagnostic: str = "",
-              inspect_build: bool = False, extra: str = "") -> None:
+              inspect_build: bool = False, extra: str = "",
+              attach_function: str = "abox_platform_attach_components") -> None:
     with tempfile.TemporaryDirectory(prefix=f"cmake-{name}-", dir=ROOT / "build") as folder:
         source = Path(folder)
         config = source / "config"
@@ -23,7 +24,7 @@ def configure(name: str, arguments: str, success: bool, diagnostic: str = "",
             f"add_subdirectory(\"{ROOT.as_posix()}\" platform-build)\n"
             "add_executable(consumer consumer.c)\n"
             f"set(ABOX_PRODUCT_CONFIG_DIR \"{config.as_posix()}\")\n"
-            f"abox_platform_attach_components(consumer {arguments})\n"
+            f"{attach_function}(consumer {arguments})\n"
             f"{extra}\n",
             encoding="utf-8")
         result = subprocess.run(["cmake", "-S", str(source), "-B", str(source / "build"),
@@ -49,6 +50,11 @@ def main() -> None:
     configure("hardware", "SCHEDULER BAREMETAL HARDWARE stm32f105_ec800_v1 COMPONENTS core", True)
     configure("standard-port", "SCHEDULER BAREMETAL HARDWARE stm32f105_ec800_v1 COMPONENTS core ec_power", True,
               extra="abox_platform_attach_standard_port(consumer HARDWARE stm32f105_ec800_v1)")
+    configure("standard-app", "PRODUCT_CONFIG_DIR ${ABOX_PRODUCT_CONFIG_DIR} SCHEDULER BAREMETAL", True,
+              attach_function="abox_platform_attach_standard_app")
+    configure("standard-app-missing-scheduler", "PRODUCT_CONFIG_DIR ${ABOX_PRODUCT_CONFIG_DIR}", False,
+              "PRODUCT_CONFIG_DIR and SCHEDULER are",
+              attach_function="abox_platform_attach_standard_app")
     configure("standard-port-unknown", "SCHEDULER BAREMETAL COMPONENTS core", False,
               "HARDWARE must be stm32f105_ec800_v1",
               extra="abox_platform_attach_standard_port(consumer HARDWARE unknown)")

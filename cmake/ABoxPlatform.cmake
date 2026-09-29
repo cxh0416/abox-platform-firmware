@@ -68,6 +68,27 @@ function(abox_platform_attach_standard_port target)
         "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../targets/stm32f105_ec800_v1/include")
 endfunction()
 
+# Standard board link set for a new App. This does not create the product's
+# startup, control/safety task or protocol handlers; it keeps one explicit
+# scheduler and hardware contract while reusing the common communication stack.
+function(abox_platform_attach_standard_app target)
+    cmake_parse_arguments(ABOX_APP "" "PRODUCT_CONFIG_DIR;SCHEDULER" "" ${ARGN})
+    if(ABOX_APP_UNPARSED_ARGUMENTS OR ABOX_APP_KEYWORDS_MISSING_VALUES OR
+            NOT ABOX_APP_PRODUCT_CONFIG_DIR OR NOT ABOX_APP_SCHEDULER)
+        message(FATAL_ERROR "abox_platform_attach_standard_app: PRODUCT_CONFIG_DIR and SCHEDULER are required")
+    endif()
+    set(ABOX_PRODUCT_CONFIG_DIR "${ABOX_APP_PRODUCT_CONFIG_DIR}")
+    abox_platform_attach_components(${target}
+        SCHEDULER ${ABOX_APP_SCHEDULER}
+        HARDWARE stm32f105_ec800_v1
+        COMPONENTS core cjson board_io ec_power ec800 ec800_ufs
+                   ec800_command_port ec800_tls mqtt_tls mqtt_runtime
+                   mqtt_trial mqtt_v4 mqtt_ec800_rx mqtt_ec800
+                   enrollment enrollment_ec800_http https_ufs_downloader
+                   boot_v2_common boot_v2_app cloud_service)
+    abox_platform_attach_standard_port(${target} HARDWARE stm32f105_ec800_v1)
+endfunction()
+
 function(abox_platform_attach target)
     if(NOT TARGET ${target})
         message(FATAL_ERROR "abox_platform_attach: target '${target}' does not exist")
