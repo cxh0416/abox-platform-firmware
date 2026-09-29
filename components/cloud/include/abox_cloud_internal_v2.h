@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-/* Shared envelope for the legacy /internal/* 2.0 request contract. Products
+/* Shared envelope for the legacy internal Topic V2 request contract. Products
  * still validate params, choose actions, and map errors to their own codes. */
 typedef struct {
     cJSON *root;
