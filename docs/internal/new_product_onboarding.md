@@ -25,6 +25,8 @@
 
 - 标准板 `ABoxStm32F105Ec800Identity_Build()` 在 Hardware Port 内读取 STM32 UID 与冻结 Boot 描述符，再调用公共 Enrollment 身份格式化器。产品仍声明已分配 VID 判据、fallback 前缀、ICCID 来源、hardwareContract 和 App 版本；没有把产品身份写入 Platform。三产品已迁移，主机、ARM 及标准测试板的擦除测试配置后重新入网均通过：各自专属合同到 verified，独立 `get_info` 返回 200 与 OTA ready。送餐车首次查询时 ICCID 尚未有效，稍后重查有效，证据保留两个读数。
 
+- 公共 `ABoxMqttRuntime` 新增可选 TLS context 能力探测：启用时先观察模组 `AT+QSSLCFG=?` 对目标 context 的范围声明，再允许 TLS lease；不支持或查询失败直接拒绝，绝不退回明文。主机测试覆盖支持、不支持和 RDY 后重新探测。既有底盘/清扫车默认接线尚未启用该选项，因此现行行为不变；这是送餐车私有 TLS runtime 迁移前必须补齐的安全差异，尚未声称送餐车已迁入。
+
 ## 下一阶段入口
 
 本轮又把清扫车 `1.3.7-cp2` 与巡防底盘 `0.2.48-cp2` 的启动三报文接入紧凑游标：两者产品主机测试与 Platform 32 项 CTest、ARM Release 构建通过；标准板分别按其 hardwareContract 重新入网，Broker 踢线后抓到 Manifest → Heartbeat → 完整状态，独立 `get_info` 和关联 `sync_state` 响应/报告通过。底盘台架构建禁用所有车辆输出和 CAN 诊断，清扫车没有连接车辆负载；这不是运动或供电验收。原始证据分别在产品仓 `docs/operations/evidence/2026-09-29-platform-cloud-bootstrap-*/index.json`。
