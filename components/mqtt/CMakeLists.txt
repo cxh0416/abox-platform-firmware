@@ -4,7 +4,8 @@ foreach(module mqtt_v4 mqtt_ec800_rx mqtt_ec800 mqtt_tls mqtt_runtime mqtt_trial
     target_include_directories(abox_${module} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 endforeach()
 target_link_libraries(abox_mqtt_ec800 PUBLIC abox::ec800 abox::mqtt_ec800_rx)
-target_sources(abox_mqtt_ec800 PRIVATE src/abox_mqtt_receipt.c)
+target_sources(abox_mqtt_ec800 PRIVATE src/abox_mqtt_receipt.c
+    src/abox_mqtt_ec800_bridge.c)
 target_link_libraries(abox_mqtt_tls PUBLIC abox::ec800_tls)
 target_link_libraries(abox_mqtt_runtime PUBLIC abox::mqtt_tls abox::ec800_command_port)
 target_sources(abox_mqtt_runtime PRIVATE src/abox_mqtt_runtime_core_port.c)
