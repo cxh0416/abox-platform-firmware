@@ -34,6 +34,8 @@ typedef struct {
     uint32_t generation;
     uint32_t heartbeat_due;
     uint32_t status_due;
+    uint32_t event_serial;
+    uint32_t in_flight_event_serial;
     uint64_t operation;
     ABoxCloudJobKind in_flight;
     uint8_t ready;

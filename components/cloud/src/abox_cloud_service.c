@@ -75,6 +75,7 @@ int ABoxCloudService_WakeState(ABoxCloudService *service, const char *reason)
         !copy_text(service->event_reason, sizeof(service->event_reason), reason))
         return 0;
     service->event_pending = 1U;
+    service->event_serial++;
     return 1;
 }
 
@@ -115,10 +116,20 @@ int ABoxCloudService_Begin(ABoxCloudService *service, const ABoxCloudJob *job,
     ABoxCloudJob expected;
     if (!service || !job || !operation || service->in_flight != ABOX_CLOUD_JOB_NONE ||
         !ABoxCloudService_Next(service, now, &expected) ||
-        job->kind != expected.kind || job->generation != expected.generation)
+        job->kind != expected.kind || job->generation != expected.generation ||
+        ((job->request_id || expected.request_id) &&
+         (!job->request_id || !expected.request_id ||
+          strcmp(job->request_id, expected.request_id) != 0)) ||
+        ((job->reason || expected.reason) &&
+         (!job->reason || !expected.reason ||
+          strcmp(job->reason, expected.reason) != 0)))
         return 0;
     service->in_flight = job->kind;
     service->operation = operation;
+    service->in_flight_event_serial =
+        job->kind == ABOX_CLOUD_JOB_STATE && service->event_pending &&
+        !service->sync_pending && service->bootstrap_stage == 0U
+            ? service->event_serial : 0U;
     return 1;
 }
 
@@ -156,7 +167,8 @@ ABoxCloudJobKind ABoxCloudService_Receipt(ABoxCloudService *service,
         service->sync_pending = 0U;
         service->status_due = now + service->options.status_period_ms;
     } else if (kind == ABOX_CLOUD_JOB_STATE && service->event_pending) {
-        service->event_pending = 0U;
+        if (service->event_serial == service->in_flight_event_serial)
+            service->event_pending = 0U;
         service->status_due = now + service->options.status_period_ms;
     } else if (kind == ABOX_CLOUD_JOB_HEARTBEAT)
         service->heartbeat_due = now + service->options.heartbeat_period_ms;

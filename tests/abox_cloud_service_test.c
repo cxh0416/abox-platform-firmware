@@ -74,11 +74,25 @@ int main(void)
     assert(ABoxCloudService_WakeState(&service, "power_change"));
     job = next(&service, 210U, ABOX_CLOUD_JOB_STATE);
     assert(strcmp(job.reason, "power_change") == 0);
+    {
+        ABoxCloudJob wrong = job;
+        wrong.reason = "fabricated";
+        assert(!ABoxCloudService_Begin(&service, &wrong, 19U, 210U));
+    }
     assert(ABoxCloudService_Begin(&service, &job, 19U, 210U));
     assert(ABoxCloudService_Receipt(&service, job.generation, 19U, 0, 211U)
            == ABOX_CLOUD_JOB_NONE);
     job = next(&service, 212U, ABOX_CLOUD_JOB_STATE);
     confirm(&service, &job, 20U, 212U);
+    assert(ABoxCloudService_WakeState(&service, "first"));
+    job = next(&service, 213U, ABOX_CLOUD_JOB_STATE);
+    assert(ABoxCloudService_Begin(&service, &job, 22U, 213U));
+    assert(ABoxCloudService_WakeState(&service, "second"));
+    assert(ABoxCloudService_Receipt(&service, job.generation, 22U, 1, 214U)
+           == ABOX_CLOUD_JOB_STATE);
+    job = next(&service, 214U, ABOX_CLOUD_JOB_STATE);
+    assert(strcmp(job.reason, "second") == 0);
+    confirm(&service, &job, 23U, 214U);
     job = next(&service, 1207U, ABOX_CLOUD_JOB_HEARTBEAT);
     confirm(&service, &job, 21U, 1207U);
     assert(!ABoxCloudService_Next(&service, 1208U, &job));
