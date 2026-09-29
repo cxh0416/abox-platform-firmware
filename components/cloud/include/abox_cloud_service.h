@@ -52,6 +52,7 @@ int ABoxCloudService_Init(ABoxCloudService *service,
                           const ABoxCloudServiceOptions *options, uint32_t now);
 void ABoxCloudService_SetReady(ABoxCloudService *service, int ready, uint32_t now);
 void ABoxCloudService_NetworkChanged(ABoxCloudService *service);
+int ABoxCloudService_Bootstrapping(const ABoxCloudService *service);
 /* The caller retains its response topic/payload until RESPONSE confirmation. */
 int ABoxCloudService_QueueResponse(ABoxCloudService *service,
                                    const char *request_id, int sync_state);

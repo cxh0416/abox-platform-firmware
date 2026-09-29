@@ -52,6 +52,11 @@ void ABoxCloudService_SetReady(ABoxCloudService *service, int ready, uint32_t no
     service->status_due = now;
 }
 
+int ABoxCloudService_Bootstrapping(const ABoxCloudService *service)
+{
+    return service && service->ready && service->bootstrap_stage != 0U;
+}
+
 int ABoxCloudService_QueueResponse(ABoxCloudService *service,
                                    const char *request_id, int sync_state)
 {
