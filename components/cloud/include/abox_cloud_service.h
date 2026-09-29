@@ -52,6 +52,7 @@ typedef struct {
     uint64_t operation;
     uint32_t generation;
     uint8_t kind; /* Product-owned nonzero kind; zero means idle. */
+    uint8_t ready;
 } ABoxCloudTxTracker;
 
 typedef enum {
@@ -62,6 +63,7 @@ typedef enum {
 
 int ABoxCloudTxTracker_Init(ABoxCloudTxTracker *tracker);
 void ABoxCloudTxTracker_NetworkChanged(ABoxCloudTxTracker *tracker);
+void ABoxCloudTxTracker_SetReady(ABoxCloudTxTracker *tracker, int ready);
 int ABoxCloudTxTracker_Begin(ABoxCloudTxTracker *tracker,
                              uint8_t kind, uint64_t operation);
 ABoxCloudTxReceipt ABoxCloudTxTracker_Receipt(ABoxCloudTxTracker *tracker,

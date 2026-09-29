@@ -44,6 +44,13 @@ int main(void)
                                       &tracked_kind) == ABOX_CLOUD_TX_FAILED);
     assert(tracked_kind == 2U && !tracker.kind);
     assert(ABoxCloudTxTracker_Begin(&tracker, 3U, 42U));
+    ABoxCloudTxTracker_SetReady(&tracker, 1);
+    ABoxCloudTxTracker_SetReady(&tracker, 0);
+    assert(!tracker.kind);
+    assert(ABoxCloudTxTracker_Receipt(&tracker, generation, 42U, 1,
+                                      &tracked_kind) == ABOX_CLOUD_TX_IGNORED);
+    ABoxCloudTxTracker_SetReady(&tracker, 1);
+    assert(ABoxCloudTxTracker_Begin(&tracker, 3U, 42U));
     ABoxCloudTxTracker_NetworkChanged(&tracker);
     assert(ABoxCloudTxTracker_Begin(&tracker, 4U, 43U));
     assert(ABoxCloudTxTracker_Receipt(&tracker, generation, 42U, 1,

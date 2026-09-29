@@ -104,6 +104,17 @@ void ABoxCloudTxTracker_NetworkChanged(ABoxCloudTxTracker *tracker)
     if (++tracker->generation == 0U) tracker->generation = 1U;
     tracker->operation = 0U;
     tracker->kind = 0U;
+    tracker->ready = 0U;
+}
+
+void ABoxCloudTxTracker_SetReady(ABoxCloudTxTracker *tracker, int ready)
+{
+    if (!tracker) return;
+    if (!ready) {
+        if (tracker->ready) ABoxCloudTxTracker_NetworkChanged(tracker);
+        return;
+    }
+    tracker->ready = 1U;
 }
 
 int ABoxCloudTxTracker_Begin(ABoxCloudTxTracker *tracker,
