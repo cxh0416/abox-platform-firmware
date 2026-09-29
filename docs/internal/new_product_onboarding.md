@@ -12,7 +12,7 @@
 - `ABoxEc800Recovery` 对 AT 隔离后的模组电源轨重启做有界冷却判断，产品或 Cloud service 仍需声明 OTA、安全及维护事务是否允许重启。送餐车已接入此门禁，重启后刷新 Enrollment HTTP 和 OTA 网络准备；保持 AT 隔离直到物理 RDY，不能仅靠 MQTT 重连解除。
 - `ABoxMqttTrialExecutor` 将 trial 状态机的六种动作统一排入单个通信 owner 队列；超时或取消后的 RESTORE 抢占尚未执行的旧动作，取动作时校验 session。产品仍决定持久化 codec、证明报文、安全准入和实际 transport 操作。三产品均已接入公共 executor，并在标准测试板分别完成其既有证明类型的正向试连；送餐车又验证了不存在的候选 Broker 超时后恢复旧认证连接和重启持久化。TLS、认证及掉电等负向组合仍需继续验证。
 - 新增可选 `abox::cloud_service` 的 `ABoxCloudService` 调度核心：单 owner、连接 generation 与发布 operation 关联，统一 Manifest → Heartbeat → 完整 State 启动顺序，以及响应、关联状态报告、事件和周期上报的有界排队。产品仍构造原有 MQTT V4 报文、提供实际 transport、维护证明和业务状态。送餐车已迁移启动三报文、`sync_state` 关联状态报告、周期心跳及普通响应的调度与 operation 回执；在标准测试板确认响应先于同 requestId 报告、约 5 秒心跳、Broker kick 和同参数试连后重连恢复。响应 payload 队列、其他命令 dispatch、OTA 与 Cloud 主循环仍由产品实现。送餐车原协议没有周期完整状态，因此公共选项设为零以关闭该调度。底盘与清扫车尚未迁入。
-- `ABoxCloudBootstrap` 是同一组件中的小型启动游标，提供相同的三报文顺序、连接 generation 和精确 operation 回执，不分配 request、response 或事件字符串。清扫车现有 TX scheduler 暂时继续管理其余报文，以满足固定故障邮箱前的 RAM 约束；迁移公共 Cloud 全功能时需替换产品重复状态，不能并存两份大型缓存。
+- `ABoxCloudBootstrap` 是同一组件中的小型启动游标，提供相同的三报文顺序、连接 generation 和精确 operation 回执，不分配 request、response 或事件字符串。清扫车和巡防底盘的现有 TX scheduler 暂时继续管理其余报文，以满足固定故障邮箱前的 RAM 约束；迁移公共 Cloud 全功能时需替换产品重复状态，不能并存两份大型缓存。两个产品均在标准测试板重新入网，Broker 踢线后订阅采集到 Manifest → Heartbeat → 完整 State，并验证 `sync_state` 响应先于关联状态。
 - `ABoxBootV2Ec800Adapter_Bind()` 位于既有 `abox::boot_v2_app`，统一 OTA owner 的 AT 提交、RAW、URC、取消与接收溢出计数。产品继续提供 tick、MQTT 暂停/停止和工作区、日志、版本、artifact、Flash 布局及传输缓冲区；App OTA 状态机仍是原有 `ABoxBootV2App`。
 - Enrollment 的 TLS 凭据按产品声明的预期 profile 字符串校验；既有默认值为 1，底盘显式声明 0。profile 不匹配时拒绝进入候选试连，明文入网的现有行为不变。服务端仍按产品专属 hardwareContract 决定入网策略。
 - `ABoxEc800Iccid` 在同一 AT owner 中查询、解析并复位 SIM 身份；三产品 adapter 已移除重复的 `AT+QCCID` 处理。`ABoxMqttRuntimeOptions_StandardEc800()` 集中标准板的 client、TLS context、CA 与超时参数，底盘和清扫车仅声明 owner/profile 及特殊测试超时。
@@ -23,9 +23,11 @@
 
 ## 下一阶段入口
 
+本轮又把清扫车 `1.3.7-cp2` 与巡防底盘 `0.2.48-cp2` 的启动三报文接入紧凑游标：两者产品主机测试与 Platform 32 项 CTest、ARM Release 构建通过；标准板分别按其 hardwareContract 重新入网，Broker 踢线后抓到 Manifest → Heartbeat → 完整状态，独立 `get_info` 和关联 `sync_state` 响应/报告通过。底盘台架构建禁用所有车辆输出和 CAN 诊断，清扫车没有连接车辆负载；这不是运动或供电验收。原始证据分别在产品仓 `docs/operations/evidence/2026-09-29-platform-cloud-bootstrap-*/index.json`。
+
 1. 巡防底盘台架继续补完整蜂窝断网、字面模组 RDY、真实迟到 PUBACK、OTA 占用和 candidate 成功矩阵；已完成的 fault injection 和 Broker kick 分别记录，不能把它们等同于所有网络故障。送餐车 1.1.26 的一次 pre-App Boot 停机须继续查明，并做冷启动复现。
 2. 清扫车已把状态报告证明接到 operation 机制，送餐车已把心跳证明接到 operation 机制；三产品现均使用公共 trial executor。送餐车私有 TLS runtime 仍待接入已有公共 `mqtt_runtime`，避免抽取第二个竞争性 runtime。保留各自 proof 类型、响应码和业务状态。
-3. 将 `ABoxCloudService` 从送餐车已验证的启动、关联状态、心跳和普通响应扩展到公共响应 payload 队列、事件调度和 Profile dispatch，再迁移底盘与清扫车；现有公共接口尚未接管 JSON 包络、命令幂等、维护和 App OTA。产品提供身份与 Profile、静态资源、状态 provider、command handler、Config codec、维护/OTA 安全 callback；App 不因组件数量增加而增加 EC800 owner 或通信任务。底盘与清扫车仅剩约 4 KiB RAM guard，迁移必须替换重复状态而非简单叠加一个服务对象。
+3. 将 `ABoxCloudService` 从送餐车已验证的启动、关联状态、心跳和普通响应扩展到公共响应 payload 队列、事件调度和 Profile dispatch；底盘与清扫车已接入紧凑启动游标，其余公共编排需逐步替换产品状态。现有公共接口尚未接管 JSON 包络、命令幂等、维护和 App OTA。产品提供身份与 Profile、静态资源、状态 provider、command handler、Config codec、维护/OTA 安全 callback；App 不因组件数量增加而增加 EC800 owner 或通信任务。底盘与清扫车仅剩约 4 KiB RAM guard，迁移必须替换重复状态而非简单叠加一个服务对象。
 4. 继续上收 Enrollment/OTA 默认适配与发布清单生成；公共发布校验和目录替换已落地，仍需在通过产品验收后的下一次正式发布中验证整条入口。旧产品先用 codec 保留字节 ABI；不能把三种 Flash 格式强转为同一结构。
 
 标准目标只决定引脚、电平和端口时序。OUT 通道的负载语义、动作顺序、运动或开锁准入、健康判据仍由产品实现；不同 MCU/板卡需提供自己的 Hardware Contract，不得将 STM32F105 假设放入公共业务组件。
