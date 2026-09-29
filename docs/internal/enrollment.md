@@ -6,8 +6,8 @@ hardwareContract、Boot/App 标识、HTTPS origin、就绪门禁和配置持久�
 
 `ABoxEnrollmentEc800Http` 执行 EC800 HTTPS POST，收到完整的 `QHTTPREAD: 0` 后回调入网
 核心。`QHTTPSTOP` 只用于失败或取消时中止尚未完成的请求；中止失败会阻止新 HTTPS
-操作，只有物理 modem reset 后才能调用 `AfterModemReset` 恢复。产品先确认蜂窝、CA、
-OTA 互斥和 AT 空闲，再调用 `Post`。响应长度超过调用方缓冲区时拒绝解析。
+操作，只有物理 modem reset 后才能调用 `AfterModemReset` 恢复。产品先确认 modem 上电、CA、
+OTA 互斥和 AT 空闲，再调用 `Post`。HTTP 适配器先查询 PDP context 1，未激活时执行 QIACT，避免空配置启动依赖先建立过 MQTT。响应长度超过调用方缓冲区时拒绝解析。
 
 入网核心保留 pending requestId/pollToken。202 使用合法 `retryAfterSec`，缺失或无效时
 等待 120 秒。401/403/404/410 清除 request 凭据并等待 120 秒重新申请；409、网络和
