@@ -87,6 +87,8 @@ function(abox_platform_attach_standard_app target)
                    enrollment enrollment_ec800_http https_ufs_downloader
                    boot_v2_common boot_v2_app cloud_service)
     abox_platform_attach_standard_port(${target} HARDWARE stm32f105_ec800_v1)
+    target_sources(${target} PRIVATE
+        "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../targets/stm32f105_ec800_v1/enrollment_identity_stm32f105.c")
 endfunction()
 
 function(abox_platform_attach target)

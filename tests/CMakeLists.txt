@@ -62,6 +62,15 @@ add_test(NAME abox_ec800_iccid_test COMMAND abox_ec800_iccid_test)
 add_executable(abox_enrollment_identity_test abox_enrollment_identity_test.c)
 target_link_libraries(abox_enrollment_identity_test PRIVATE abox::enrollment)
 add_test(NAME abox_enrollment_identity_test COMMAND abox_enrollment_identity_test)
+add_executable(abox_stm32_enrollment_identity_test
+    abox_stm32_enrollment_identity_test.c
+    ../targets/stm32f105_ec800_v1/enrollment_identity_stm32f105.c)
+target_include_directories(abox_stm32_enrollment_identity_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/stm32_identity_stub
+    ${CMAKE_CURRENT_SOURCE_DIR}/../targets/stm32f105_ec800_v1/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../components/boot_v2/include)
+target_link_libraries(abox_stm32_enrollment_identity_test PRIVATE abox::enrollment)
+add_test(NAME abox_stm32_enrollment_identity_test COMMAND abox_stm32_enrollment_identity_test)
 add_executable(abox_enrollment_service_test abox_enrollment_service_test.c)
 target_link_libraries(abox_enrollment_service_test PRIVATE abox::enrollment_ec800_http)
 add_test(NAME abox_enrollment_service_test COMMAND abox_enrollment_service_test)
