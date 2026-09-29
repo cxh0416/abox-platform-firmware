@@ -1,0 +1,104 @@
+#ifndef ABOX_BOARD_IO_H
+#define ABOX_BOARD_IO_H
+
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef enum {
+    ABOX_BOARD_IO_OUT1 = 0,
+    ABOX_BOARD_IO_OUT2,
+    ABOX_BOARD_IO_OUT3,
+    ABOX_BOARD_IO_RELAY,
+    ABOX_BOARD_IO_OUTPUT_COUNT
+} ABoxBoardIoOutput;
+
+typedef enum {
+    ABOX_BOARD_IO_IN1 = 0,
+    ABOX_BOARD_IO_IN2,
+    ABOX_BOARD_IO_IN3,
+    ABOX_BOARD_IO_IN4,
+    ABOX_BOARD_IO_IN5,
+    ABOX_BOARD_IO_IN6,
+    ABOX_BOARD_IO_IN7,
+    ABOX_BOARD_IO_IN8,
+    ABOX_BOARD_IO_INPUT_COUNT
+} ABoxBoardIoInput;
+
+typedef enum {
+    ABOX_BOARD_IO_LED1 = 0,
+    ABOX_BOARD_IO_LED2,
+    ABOX_BOARD_IO_LED3,
+    ABOX_BOARD_IO_LED_COUNT
+} ABoxBoardIoLed;
+
+typedef enum {
+    ABOX_BOARD_IO_OK = 0,
+    ABOX_BOARD_IO_NOT_READY,
+    ABOX_BOARD_IO_INVALID_CHANNEL,
+    ABOX_BOARD_IO_DENIED,
+    ABOX_BOARD_IO_READBACK_FAILED,
+    ABOX_BOARD_IO_IO_FAILED
+} ABoxBoardIoResult;
+
+typedef enum {
+    ABOX_BOARD_IO_LED_OFF = 0,
+    ABOX_BOARD_IO_LED_ON,
+    ABOX_BOARD_IO_LED_BLINK
+} ABoxBoardIoLedMode;
+
+/* All electrical levels are active high. prepare must write low before
+ * configuring board-owned outputs and must leave them low on failure. */
+typedef struct {
+    void *context;
+    int (*prepare)(void *context);
+    int (*write_output)(void *context, ABoxBoardIoOutput output, uint8_t level);
+    int (*read_output)(void *context, ABoxBoardIoOutput output, uint8_t *level);
+    int (*read_input)(void *context, ABoxBoardIoInput input, uint8_t *level);
+    int (*write_led)(void *context, ABoxBoardIoLed led, uint8_t level);
+    uint32_t (*enter_critical)(void *context);
+    void (*exit_critical)(void *context, uint32_t key);
+} ABoxBoardIoPort;
+
+typedef struct {
+    uint8_t raw_mask;
+    uint8_t stable_mask;
+    uint8_t valid_mask;
+    uint32_t sampled_at_ms;
+} ABoxBoardIoInputs;
+
+typedef struct {
+    const ABoxBoardIoPort *port;
+    ABoxBoardIoInputs inputs;
+    uint32_t changed_at_ms[ABOX_BOARD_IO_INPUT_COUNT];
+    uint32_t led_changed_at_ms[ABOX_BOARD_IO_LED_COUNT];
+    uint32_t led_half_period_ms[ABOX_BOARD_IO_LED_COUNT];
+    uint8_t allowed_outputs;
+    uint8_t candidate_mask;
+    uint8_t observed_mask;
+    uint8_t led_mode[ABOX_BOARD_IO_LED_COUNT];
+    uint8_t led_level[ABOX_BOARD_IO_LED_COUNT];
+    uint8_t ready;
+} ABoxBoardIo;
+
+/* allowed_outputs uses output enum bit positions. Disabled outputs may still
+ * be commanded off. A successful output write confirms only the MCU latch. */
+ABoxBoardIoResult ABoxBoardIo_Init(ABoxBoardIo *io, const ABoxBoardIoPort *port,
+                                   uint8_t allowed_outputs);
+ABoxBoardIoResult ABoxBoardIo_OutputSet(ABoxBoardIo *io, ABoxBoardIoOutput output,
+                                        uint8_t on);
+ABoxBoardIoResult ABoxBoardIo_OutputGet(ABoxBoardIo *io, ABoxBoardIoOutput output,
+                                        uint8_t *on);
+ABoxBoardIoResult ABoxBoardIo_InputsGet(ABoxBoardIo *io, ABoxBoardIoInputs *inputs);
+ABoxBoardIoResult ABoxBoardIo_LedSet(ABoxBoardIo *io, ABoxBoardIoLed led,
+                                     ABoxBoardIoLedMode mode, uint32_t period_ms,
+                                     uint32_t now_ms);
+void ABoxBoardIo_Poll(ABoxBoardIo *io, uint32_t now_ms);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

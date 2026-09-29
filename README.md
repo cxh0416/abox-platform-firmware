@@ -5,6 +5,7 @@
 ## 目录说明
 
 - `components/core/include/`、`components/core/src/`：产品配置校验、硬件回调端口和平台版本接口。
+- `components/board_io/`：可选的通用板载 I/O 状态组件；板型映射见 [内部说明](docs/internal/board_io.md)。
 - `components/boot_v2/`：Boot State V3、描述符、故障邮箱、App 下载端和 Boot 安装端。
 - `components/ota/`：当前 HTTPS/UFS 下载器；旧架构 EC800 AT 与直接写 Flash 组件位于 `components/legacy/ota/`。
 - `components/ec_power/`：EC800 上电、关机和重启时序。

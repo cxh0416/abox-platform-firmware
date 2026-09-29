@@ -7,4 +7,10 @@ function(abox_hardware_validate target config_dir scheduler)
         message(FATAL_ERROR "stm32f105_ec800_v1 scheduler disagrees with product config")
     endif()
     target_include_directories(${target} PRIVATE "${config_dir}")
+    if(board_io IN_LIST ABOX_COMPONENTS)
+        target_sources(${target} PRIVATE
+            "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/board_io_stm32f105.c")
+        target_include_directories(${target} PRIVATE
+            "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/include")
+    endif()
 endfunction()

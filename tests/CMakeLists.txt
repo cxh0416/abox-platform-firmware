@@ -1,4 +1,14 @@
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_executable(abox_board_io_test abox_board_io_test.c)
+target_link_libraries(abox_board_io_test PRIVATE abox::board_io)
+add_test(NAME abox_board_io_test COMMAND abox_board_io_test)
+add_executable(abox_board_io_stm32_test abox_board_io_stm32_test.c
+    ../targets/stm32f105_ec800_v1/board_io_stm32f105.c)
+target_include_directories(abox_board_io_stm32_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/stm32_stub
+    ${CMAKE_CURRENT_SOURCE_DIR}/../targets/stm32f105_ec800_v1/include)
+target_link_libraries(abox_board_io_stm32_test PRIVATE abox::board_io)
+add_test(NAME abox_board_io_stm32_test COMMAND abox_board_io_stm32_test)
 add_test(NAME abox_component_contract_test
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/cmake_component_contract_test.py)
 foreach(case IN ITEMS

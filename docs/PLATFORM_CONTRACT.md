@@ -12,6 +12,7 @@
 公共组件包括：
 
 - `abox::core`：产品配置校验和硬件回调端口；
+- `abox::board_io`：可选板载 PVIN、继电器、输入消抖和 LED 控制；STM32F105 映射通过硬件合同接入，产品负责输出授权及负载语义；
 - `abox::cjson`：统一 JSON 库；
 - `abox::ec_power`：EC800 电源时序；
 - `abox::ec800`：HAL/调度器无关的 AT 命令队列、动态 owner、RAW 接收和 USART 循环 DMA drain；

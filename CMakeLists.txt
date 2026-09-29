@@ -3,7 +3,7 @@ project(ABoxPlatform VERSION 0.3.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
-foreach(module core cjson ec800 ec_power mqtt enrollment ota boot_v2 legacy/ota)
+foreach(module core board_io cjson ec800 ec_power mqtt enrollment ota boot_v2 legacy/ota)
     add_subdirectory(components/${module})
 endforeach()
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ABoxPlatform.cmake)
@@ -14,7 +14,7 @@ endif()
 # Product builds only include libraries explicitly linked by the product.
 if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     foreach(abox_target IN ITEMS
-            abox_core abox_cjson abox_ec800 abox_ec800_ufs abox_ec800_tls
+            abox_core abox_board_io abox_cjson abox_ec800 abox_ec800_ufs abox_ec800_tls
             abox_ec800_command_port abox_ec_power abox_mqtt_v4
             abox_mqtt_ec800_rx abox_mqtt_ec800 abox_mqtt_tls
             abox_mqtt_runtime abox_mqtt_trial abox_enrollment
