@@ -8,7 +8,7 @@
 - `ABoxMqttReceipt` 位于现有 `abox::mqtt_ec800` target 内，跟踪单个在途发布的 64 位 transport operation。迟到或不匹配的事件不会完成当前发布；复位或取消使在途结果失败。`SUBMITTED` 仍是待完成状态，`CONFIRMED` 仅表示模组给出该 operation 的发布结果，不等于 Broker 消费或业务成功。
 - 巡防底盘已让 Cloud TX 依据精确 operation 推进响应、bootstrap 和 candidate heartbeat proof。旧发布计数接口暂留供兼容调用；清扫车和送餐车尚未切换到 receipt。
 
-公共 Port 已在三产品源码接入；三个产品的 ARM Release 构建通过。Platform GCC/Ninja 主机测试 24 项、底盘主机测试 39 项、清扫车 27 项以及送餐车既有协议/适配测试通过。这些结果仅覆盖源码和主机/交叉构建，未覆盖 UART 电气、EC800 实际连接、MQTT Broker、OTA 下载或实车行为。正式产品发布状态由各产品 `dist/` 和验收记录决定。
+公共 Port 已在三产品源码接入；三个产品的 ARM Release 构建通过。Platform GCC/Ninja 主机测试 24 项、底盘主机测试 39 项、清扫车 27 项以及送餐车既有协议/适配测试通过。底盘禁用执行器候选随后在标准测试板上完成启动、MQTT READY、Manifest 与状态落库、`get_info`、`sync_state` 和 MCU 重启重连；配置页保持原哈希，测试板已恢复原 App/State。此验证仍不覆盖独立 EC800 RDY、断网、迟到 PUBACK、候选失败、OTA 占用或实车行为；详见底盘仓 `docs/operations/evidence/2026-09-29-cloud-port-stage1/`。正式产品发布状态由各产品 `dist/` 和验收记录决定。
 
 ## 下一阶段入口
 
