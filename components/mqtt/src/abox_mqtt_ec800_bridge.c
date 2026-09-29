@@ -45,6 +45,7 @@ static void on_state(void *user, ABoxMqttEc800State state)
 static void on_modem_reset(void *user)
 {
     ABoxMqttEc800Bridge *bridge = (ABoxMqttEc800Bridge *)user;
+    bridge->iccid_requested = 0U;
     if (bridge->hooks->modem_reset)
         bridge->hooks->modem_reset(bridge->hooks->context);
 }
@@ -83,6 +84,10 @@ void ABoxMqttEc800Bridge_Poll(ABoxMqttEc800Bridge *bridge, uint32_t now_ms)
     if (!bridge || !bridge->initialized) return;
     ABoxMqttEc800_Poll(&bridge->transport, now_ms);
     ABoxEc800Iccid_Poll(&bridge->iccid, now_ms);
+    if (bridge->iccid_requested &&
+        ABoxMqttEc800Bridge_CanRunBackgroundAt(bridge) &&
+        ABoxEc800Iccid_Request(&bridge->iccid, now_ms))
+        bridge->iccid_requested = 0U;
 }
 
 void ABoxMqttEc800Bridge_OnModemReset(ABoxMqttEc800Bridge *bridge,
@@ -92,6 +97,7 @@ void ABoxMqttEc800Bridge_OnModemReset(ABoxMqttEc800Bridge *bridge,
     ABoxMqttReceipt_Invalidate(&bridge->receipt);
     ABoxMqttEc800_OnModemReset(&bridge->transport, now_ms);
     ABoxEc800Iccid_OnModemReset(&bridge->iccid);
+    bridge->iccid_requested = 0U;
 }
 
 void ABoxMqttEc800Bridge_SetPaused(ABoxMqttEc800Bridge *bridge,
@@ -162,18 +168,28 @@ int ABoxMqttEc800Bridge_CanRunBackgroundAt(const ABoxMqttEc800Bridge *bridge)
 int ABoxMqttEc800Bridge_RequestIccid(ABoxMqttEc800Bridge *bridge,
                                        uint32_t now_ms)
 {
-    return ABoxMqttEc800Bridge_CanRunBackgroundAt(bridge) &&
-           ABoxEc800Iccid_Request(&bridge->iccid, now_ms);
+    if (!bridge || !bridge->initialized) return 0;
+    if (bridge->iccid.valid || bridge->iccid.pending) return 1;
+    if (ABoxMqttEc800Bridge_CanRunBackgroundAt(bridge) &&
+        ABoxEc800Iccid_Request(&bridge->iccid, now_ms))
+        bridge->iccid_requested = 0U;
+    else
+        bridge->iccid_requested = 1U;
+    return 1;
 }
 
 int ABoxMqttEc800Bridge_BorrowWorkspace(ABoxMqttEc800Bridge *bridge,
                                          size_t minimum_capacity)
 {
     size_t capacity = 0U;
+    uint8_t *workspace;
     if (!bridge || !bridge->initialized) return 0;
-    return ABoxMqttEc800_BorrowWorkspace(&bridge->transport, &capacity) ==
-               bridge->transport.buffers.payload &&
-           capacity >= minimum_capacity;
+    workspace = ABoxMqttEc800_BorrowWorkspace(&bridge->transport, &capacity);
+    if (!workspace) return 0;
+    if (workspace == bridge->transport.buffers.payload &&
+        capacity >= minimum_capacity) return 1;
+    (void)ABoxMqttEc800_ReturnWorkspace(&bridge->transport);
+    return 0;
 }
 
 void ABoxMqttEc800Bridge_ReturnWorkspace(ABoxMqttEc800Bridge *bridge)

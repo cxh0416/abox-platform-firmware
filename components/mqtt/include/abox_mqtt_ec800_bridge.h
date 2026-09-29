@@ -29,7 +29,7 @@ typedef struct {
     const ABoxMqttEc800BridgeHooks *hooks;
     ABoxMqttEc800State last_state;
     uint32_t publish_ok;
-    uint8_t initialized, paused, security_ready;
+    uint8_t initialized, paused, security_ready, iccid_requested;
 } ABoxMqttEc800Bridge;
 
 int ABoxMqttEc800Bridge_Init(ABoxMqttEc800Bridge *bridge, ABoxEc800At *at,
@@ -53,6 +53,7 @@ int ABoxMqttEc800Bridge_Publish(ABoxMqttEc800Bridge *bridge,
                                  uint64_t *operation);
 void ABoxMqttEc800Bridge_CancelPublish(ABoxMqttEc800Bridge *bridge);
 int ABoxMqttEc800Bridge_CanRunBackgroundAt(const ABoxMqttEc800Bridge *bridge);
+/* Queues a one-shot identity read when RX/publish currently owns the AT port. */
 int ABoxMqttEc800Bridge_RequestIccid(ABoxMqttEc800Bridge *bridge,
                                        uint32_t now_ms);
 int ABoxMqttEc800Bridge_BorrowWorkspace(ABoxMqttEc800Bridge *bridge,

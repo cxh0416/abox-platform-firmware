@@ -99,6 +99,16 @@ int main(void)
     bridge.transport.callbacks.state_changed(bridge.transport.callbacks.user,
                                              ABOX_MQTT_EC800_RETRY_WAIT);
     assert(fixture.network_changes == 1U);
+    assert(ABoxMqttEc800Bridge_RequestIccid(&bridge, 1U));
+    assert(bridge.iccid_requested);
+    bridge.transport.callbacks.modem_reset(bridge.transport.callbacks.user);
+    assert(!bridge.iccid_requested);
+    bridge.transport.state = ABOX_MQTT_EC800_PAUSED;
+    assert(!ABoxMqttEc800Bridge_BorrowWorkspace(&bridge, sizeof(payload) + 1U));
+    assert(!bridge.transport.workspace_borrowed);
+    assert(ABoxMqttEc800Bridge_BorrowWorkspace(&bridge, sizeof(payload)));
+    ABoxMqttEc800Bridge_ReturnWorkspace(&bridge);
+    assert(!bridge.transport.workspace_borrowed);
     assert(ABoxMqttReceipt_Begin(&bridge.receipt, 18U));
     ABoxMqttEc800Bridge_OnModemReset(&bridge, 10U);
     assert(ABoxMqttReceipt_Get(&bridge.receipt, 18U) == ABOX_MQTT_RECEIPT_FAILED);
