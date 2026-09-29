@@ -6,7 +6,7 @@
 
 Platform 的可选组件已由审查基线的 19 个扩展为 21 个，新增 `cloud_service` 与 `log_ring`。`ABoxCloudService` 已在送餐车承担启动、关联状态、响应及周期心跳调度；底盘与清扫车因冻结故障邮箱前的 RAM 边界，采用同组件内的紧凑 bootstrap/TX tracker，并保留产品 TX 队列。三车都已使用公共 MQTT trial executor、Enrollment 身份/服务适配、OTA AT adapter、标准 App CMake 接线、公共 MQTT Topic 构造和公共日志环；送餐车的私有 TLS runtime 已由公共 `ABoxMqttRuntime` 取代。
 
-公共 `ABoxCloudInternalV2Envelope` 现在校验既有内部 V2 请求结构并有界提取 requestId；底盘与清扫车已经迁入，产品继续校验参数、选择命令并编码原响应。底盘可选 product 字段的严格匹配与清扫车不检查该字段的旧行为分别保留。送餐车内部请求与双锁持久化幂等尚由产品处理，不能仅因字段相似改用此入口。Platform 36 项主机测试、两车产品测试及 ARM 构建通过，两车标准测试板均完成重新入网、独立请求、`sync_state` 与 Broker 踢线后的 Manifest → Heartbeat → 完整状态回归。三车公共日志环的 `get_log`/Cloud 回归亦有各产品内部证据；送餐车 1.1.35 的两次 ICCID 读数仍无效，不记为身份采集通过。
+公共 `ABoxCloudInternalV2Envelope` 现在校验既有内部 V2 请求结构并有界提取 requestId；底盘与清扫车已经迁入，产品继续校验参数、选择命令并编码原响应。底盘可选 product 字段的严格匹配与清扫车不检查该字段的旧行为分别保留。送餐车内部请求与双锁持久化幂等尚由产品处理，不能仅因字段相似改用此入口。Platform 37 项主机测试、三车产品测试及 ARM 构建通过，三车标准测试板均完成重新入网、独立请求、`sync_state` 与 Broker 踢线后的 Manifest → Heartbeat → 完整状态回归。三车公共日志环的 `get_log`/Cloud 回归亦有各产品内部证据；送餐车 1.1.36 的两次 ICCID 读数无效，1.1.37 延后后台 AT 请求后在独立查询与踢线后的重查中获得有效读数，踢线后的首次查询仍可能暂时无效。
 
 仍需继续上收公共响应 payload/dispatch、维护事务执行与 ConfigStore 协调、Enrollment/OTA 默认服务托管、单 owner service attach 和标准 App 发布全流程。现有发布器完成产物验证与整体替换，但三个候选均未替换正式 `dist/`。测试板证据不能代替真实车辆 CAN、执行器、双锁和机械反馈验收；Broker 踢线不能代替完整蜂窝断网或迟到 PUBACK 注入。
 
@@ -15,6 +15,7 @@ Platform 的可选组件已由审查基线的 19 个扩展为 21 个，新增 `c
 - `abox_platform_attach_standard_port(<app> HARDWARE stm32f105_ec800_v1)` 明确选择标准硬件目标，并为 App 链接 `platform_port_stm32f105.c`。它提供现有三个产品重复实现的 tick、UART1 同步发送、Flash 擦写/临界区、EC800 电源引脚和上电时序。Flash 地址仍读取产品 `boot_cfg.h`；产品保留启动、特殊外设和安全策略。
 - `abox_platform_attach_standard_app(<app> PRODUCT_CONFIG_DIR <dir> SCHEDULER BAREMETAL|FREERTOS)` 将标准板的组件集合与上述端口一次性链接，并继续执行板型/调度器合同检查。它是新 App 的构建接入入口，不代替 CubeMX 启动文件、产品外设或通信任务的运行 attach；后两者仍需后续阶段完成。
 - `ABoxMqttReceipt` 位于现有 `abox::mqtt_ec800` target 内，跟踪单个在途发布的 64 位 transport operation。迟到或不匹配的事件不会完成当前发布；复位或取消使在途结果失败。`SUBMITTED` 仍是待完成状态，`CONFIRMED` 仅表示模组给出该 operation 的发布结果，不等于 Broker 消费或业务成功。
+- `ABoxMqttEc800Bridge` 统一三车过去重复的 transport/receipt/ICCID/工作区接线与 ready 边沿事件。产品保留静态配置、缓冲区和业务回调；回调表以静态常量保存在 Flash，避免增加送餐车最小堆与故障邮箱前的 RAM 占用。请求若发生在 MQTT RX 回调占用 AT 门禁期间，ICCID 读操作延后至 transport 与 AT 空闲；工作区容量不足时立即归还 lease。三车 ARM 链接通过，送餐车 1.1.37 在标准板验证专属 Enrollment、独立查询、`sync_state` 及 Broker 踢线后的启动顺序。产品旧 `MQTT_Core_*` 入口暂留兼容，最终新 App 可直接装配 bridge。
 - `ABoxMqttV4_BuildTopic()` 统一五个公共 Topic 的构造；三个产品的身份切换与 App 初始化已接入。内部维护 Topic 仍沿用各产品合同，例如清扫车的 `/zxwl/sweeper_vcu/...`，不能用公共 `/zxwl/abox/...` 覆盖。
 - 巡防底盘与清扫车已让 Cloud TX 依据精确 operation 推进响应、bootstrap 和各自的 candidate proof。送餐车也已把 Manifest、状态、响应、试连受理及心跳证明关联到 operation 和 requestId；旧发布计数接口暂留兼容。送餐车 1.1.34 已迁入公共 `ABoxMqttRuntime`。
 - `ABoxEc800Recovery` 对 AT 隔离后的模组电源轨重启做有界冷却判断，产品或 Cloud service 仍需声明 OTA、安全及维护事务是否允许重启。送餐车已接入此门禁，重启后刷新 Enrollment HTTP 和 OTA 网络准备；保持 AT 隔离直到物理 RDY，不能仅靠 MQTT 重连解除。
