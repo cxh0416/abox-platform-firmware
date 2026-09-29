@@ -26,7 +26,7 @@ typedef struct {
 
 typedef struct {
     uint32_t heartbeat_period_ms;
-    uint32_t status_period_ms;
+    uint32_t status_period_ms; /* Zero disables periodic state after bootstrap. */
 } ABoxCloudServiceOptions;
 
 typedef struct {

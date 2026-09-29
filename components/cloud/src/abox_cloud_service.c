@@ -16,7 +16,8 @@ int ABoxCloudService_Init(ABoxCloudService *service,
                           const ABoxCloudServiceOptions *options, uint32_t now)
 {
     if (!service || !options || !options->heartbeat_period_ms ||
-        !options->status_period_ms) return 0;
+        options->heartbeat_period_ms > INT32_MAX ||
+        options->status_period_ms > INT32_MAX) return 0;
     memset(service, 0, sizeof(*service));
     service->options = *options;
     service->generation = 1U;
@@ -121,7 +122,8 @@ int ABoxCloudService_Next(ABoxCloudService *service, uint32_t now,
         job->reason = service->event_reason;
     } else if ((int32_t)(now - service->heartbeat_due) >= 0) {
         job->kind = ABOX_CLOUD_JOB_HEARTBEAT;
-    } else if ((int32_t)(now - service->status_due) >= 0) {
+    } else if (service->options.status_period_ms &&
+               (int32_t)(now - service->status_due) >= 0) {
         job->kind = ABOX_CLOUD_JOB_STATE;
         job->reason = "periodic";
     } else return 0;

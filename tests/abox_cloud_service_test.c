@@ -108,5 +108,18 @@ int main(void)
     job = next(&service, 1207U, ABOX_CLOUD_JOB_HEARTBEAT);
     confirm(&service, &job, 21U, 1207U);
     assert(!ABoxCloudService_Next(&service, 1208U, &job));
+    options.status_period_ms = 0U;
+    assert(ABoxCloudService_Init(&service, &options, 0U));
+    ABoxCloudService_SetReady(&service, 1, 0U);
+    job = next(&service, 0U, ABOX_CLOUD_JOB_MANIFEST);
+    confirm(&service, &job, 31U, 0U);
+    job = next(&service, 0U, ABOX_CLOUD_JOB_HEARTBEAT);
+    confirm(&service, &job, 32U, 0U);
+    job = next(&service, 0U, ABOX_CLOUD_JOB_STATE);
+    confirm(&service, &job, 33U, 0U);
+    assert(!ABoxCloudService_Next(&service, 999U, &job));
+    job = next(&service, 1000U, ABOX_CLOUD_JOB_HEARTBEAT);
+    confirm(&service, &job, 34U, 1000U);
+    assert(!ABoxCloudService_Next(&service, 1500U, &job));
     return 0;
 }
