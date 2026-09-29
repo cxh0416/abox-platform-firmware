@@ -1,4 +1,5 @@
-add_library(abox_enrollment STATIC src/abox_enrollment.c)
+add_library(abox_enrollment STATIC src/abox_enrollment.c
+    src/abox_enrollment_identity.c)
 add_library(abox::enrollment ALIAS abox_enrollment)
 target_include_directories(abox_enrollment PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(abox_enrollment PUBLIC abox::cjson)
