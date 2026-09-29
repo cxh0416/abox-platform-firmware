@@ -92,6 +92,7 @@ static int start(ABoxMqttRuntime *r, uint32_t now) {
 static void event(ABoxEc800Event e, const uint8_t *d, uint16_t n, void *u) {
   ABoxMqttRuntime *r = u;
   char l[48];
+  unsigned low, high;
   if (!r || e != ABOX_EC800_EVENT_LINE)
     return;
   if (n >= sizeof(l))
@@ -102,6 +103,10 @@ static void event(ABoxEc800Event e, const uint8_t *d, uint16_t n, void *u) {
     ABoxMqttRuntime_OnModemReset(r, 0);
     return;
   }
+  if (r->state == ABOX_MQTT_RUNTIME_PROBE_TLS &&
+      sscanf(l, "+QSSLCFG: \"sslversion\",(%u-%u)", &low, &high) == 2 &&
+      low <= r->options.tls_context && high >= r->options.tls_context)
+    r->tls_probe_supported = 1U;
   if (r->callbacks.observe_modem_line)
     r->callbacks.observe_modem_line(r->callbacks.user, l);
 }
@@ -114,6 +119,8 @@ int ABoxMqttRuntime_Init(ABoxMqttRuntime *r, ABoxEc800At *at,
       !p->apply_config || !p->mqtt_task || !p->mqtt_ready || !p->mqtt_connected || !p->ca_ready ||
       !p->time_valid || !o->ca_file || o->plain_client == o->tls_client ||
       o->tls_context >= ABOX_TLS_CONTEXT_CAPACITY || !o->command_timeout_ms ||
+      (o->probe_tls_capability &&
+       !(o->supported_tls_context_mask & (1U << o->tls_context))) ||
       !o->tls_timeout_ms || !o->connect_timeout_ms)
     return 0;
   memset(r, 0, sizeof(*r));
@@ -122,7 +129,8 @@ int ABoxMqttRuntime_Init(ABoxMqttRuntime *r, ABoxEc800At *at,
   r->options = *o;
   if ((c && !config(r, c)) ||
       !ABoxEc800CommandAdapter_Init(&r->adapter, at, o->owner, &q) ||
-      !ABoxEc800Tls_Init(&r->tls, &q, o->supported_tls_context_mask) ||
+      !ABoxEc800Tls_Init(&r->tls, &q,
+                           o->probe_tls_capability ? 0U : o->supported_tls_context_mask) ||
       !ABoxMqttTls_Init(&r->mqtt_tls, &r->tls, &q, o->tls_client) ||
       !ABoxEc800At_Register(at, o->owner, event, r))
     return 0;
@@ -422,10 +430,31 @@ void ABoxMqttRuntime_Poll(ABoxMqttRuntime *r, uint32_t now) {
   if (r->state == ABOX_MQTT_RUNTIME_WAIT_CA) {
     if (!r->callbacks.ca_ready(r->callbacks.user))
       return;
+    if (r->options.probe_tls_capability && !r->tls_probe_complete) {
+      if (!r->command.submit(r->command.context, "AT+QSSLCFG=?",
+                             r->options.command_timeout_ms, &r->operation))
+        return;
+      r->tls_probe_supported = 0U;
+      state(r, ABOX_MQTT_RUNTIME_PROBE_TLS, "tls-capability");
+      return;
+    }
     if (!r->command.submit(r->command.context, "AT+CCLK?",
                            r->options.command_timeout_ms, &r->operation))
       return;
     state(r, ABOX_MQTT_RUNTIME_CLOCK, "clock");
+    return;
+  }
+  if (r->state == ABOX_MQTT_RUNTIME_PROBE_TLS) {
+    s = r->command.poll(r->command.context, r->operation);
+    if (s == ABOX_ASYNC_PENDING) return;
+    if (s != ABOX_ASYNC_OK || !r->tls_probe_supported ||
+        !ABoxEc800Tls_SetSupportedMask(&r->tls,
+                                      r->options.supported_tls_context_mask)) {
+      fail(r, "tls-capability");
+      return;
+    }
+    r->tls_probe_complete = 1U;
+    state(r, ABOX_MQTT_RUNTIME_WAIT_CA, "wait-ca");
     return;
   }
   if (r->state == ABOX_MQTT_RUNTIME_CLOCK) {
@@ -489,6 +518,10 @@ void ABoxMqttRuntime_OnModemReset(ABoxMqttRuntime *r, uint32_t now) {
              r->state <= ABOX_MQTT_RUNTIME_STOP_UNBIND;
   ABoxEc800CommandAdapter_OnModemReset(&r->adapter);
   ABoxEc800Tls_OnModemReset(&r->tls);
+  if (r->options.probe_tls_capability) {
+    r->tls_probe_complete = r->tls_probe_supported = 0U;
+    (void)ABoxEc800Tls_SetSupportedMask(&r->tls, 0U);
+  }
   ABoxMqttTls_OnModemReset(&r->mqtt_tls);
   memset(&r->lease, 0, sizeof(r->lease));
   r->active_tls = 0;
