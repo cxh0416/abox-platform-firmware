@@ -26,7 +26,7 @@ typedef struct {
     ABoxMqttReceipt receipt;
     ABoxEc800Iccid iccid;
     ABoxEc800At *at;
-    ABoxMqttEc800BridgeHooks hooks;
+    const ABoxMqttEc800BridgeHooks *hooks;
     ABoxMqttEc800State last_state;
     uint32_t publish_ok;
     uint8_t initialized, paused, security_ready;
@@ -35,6 +35,7 @@ typedef struct {
 int ABoxMqttEc800Bridge_Init(ABoxMqttEc800Bridge *bridge, ABoxEc800At *at,
                              const ABoxMqttEc800Config *config,
                              const ABoxMqttEc800Buffers *buffers,
+                             /* hooks must remain valid for the session lifetime. */
                              const ABoxMqttEc800BridgeHooks *hooks,
                              ABoxEc800Owner iccid_owner, uint32_t now_ms);
 void ABoxMqttEc800Bridge_Poll(ABoxMqttEc800Bridge *bridge, uint32_t now_ms);

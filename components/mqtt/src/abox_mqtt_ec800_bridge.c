@@ -7,7 +7,7 @@ static void on_message(void *user, const uint8_t *topic, size_t topic_length,
 {
     ABoxMqttEc800Bridge *bridge = (ABoxMqttEc800Bridge *)user;
     const ABoxMqttEc800Buffers *buffers;
-    if (!bridge || !bridge->hooks.message) return;
+    if (!bridge || !bridge->hooks || !bridge->hooks->message) return;
     buffers = &bridge->transport.buffers;
     if (!topic || !payload || !buffers->topic || !buffers->payload ||
         topic != buffers->topic || payload != buffers->payload ||
@@ -17,8 +17,8 @@ static void on_message(void *user, const uint8_t *topic, size_t topic_length,
         return;
     buffers->topic[topic_length] = 0;
     buffers->payload[payload_length] = 0;
-    bridge->hooks.message(bridge->hooks.context, (const char *)topic,
-                          (const char *)payload);
+    bridge->hooks->message(bridge->hooks->context, (const char *)topic,
+                           (const char *)payload);
 }
 
 static void on_publish(void *user, uint64_t operation,
@@ -27,26 +27,26 @@ static void on_publish(void *user, uint64_t operation,
     ABoxMqttEc800Bridge *bridge = (ABoxMqttEc800Bridge *)user;
     ABoxMqttReceipt_OnEvent(&bridge->receipt, operation, event);
     if (event == ABOX_MQTT_EC800_PUBLISH_CONFIRMED) ++bridge->publish_ok;
-    if (bridge->hooks.publish_event)
-        bridge->hooks.publish_event(bridge->hooks.context, operation, event);
+    if (bridge->hooks->publish_event)
+        bridge->hooks->publish_event(bridge->hooks->context, operation, event);
 }
 
 static void on_state(void *user, ABoxMqttEc800State state)
 {
     ABoxMqttEc800Bridge *bridge = (ABoxMqttEc800Bridge *)user;
     if (bridge->last_state == ABOX_MQTT_EC800_READY &&
-        state != ABOX_MQTT_EC800_READY && bridge->hooks.network_changed)
-        bridge->hooks.network_changed(bridge->hooks.context);
+        state != ABOX_MQTT_EC800_READY && bridge->hooks->network_changed)
+        bridge->hooks->network_changed(bridge->hooks->context);
     bridge->last_state = state;
-    if (bridge->hooks.state_changed)
-        bridge->hooks.state_changed(bridge->hooks.context, state);
+    if (bridge->hooks->state_changed)
+        bridge->hooks->state_changed(bridge->hooks->context, state);
 }
 
 static void on_modem_reset(void *user)
 {
     ABoxMqttEc800Bridge *bridge = (ABoxMqttEc800Bridge *)user;
-    if (bridge->hooks.modem_reset)
-        bridge->hooks.modem_reset(bridge->hooks.context);
+    if (bridge->hooks->modem_reset)
+        bridge->hooks->modem_reset(bridge->hooks->context);
 }
 
 int ABoxMqttEc800Bridge_Init(ABoxMqttEc800Bridge *bridge, ABoxEc800At *at,
@@ -61,7 +61,7 @@ int ABoxMqttEc800Bridge_Init(ABoxMqttEc800Bridge *bridge, ABoxEc800At *at,
         !buffers->publish_payload) return 0;
     memset(bridge, 0, sizeof(*bridge));
     bridge->at = at;
-    bridge->hooks = *hooks;
+    bridge->hooks = hooks;
     bridge->last_state = ABOX_MQTT_EC800_IDLE;
     ABoxMqttReceipt_Init(&bridge->receipt);
     memset(&callbacks, 0, sizeof(callbacks));
