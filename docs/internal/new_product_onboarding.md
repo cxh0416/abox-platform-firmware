@@ -9,8 +9,10 @@
 - 巡防底盘与清扫车已让 Cloud TX 依据精确 operation 推进响应、bootstrap 和各自的 candidate proof。送餐车源码候选也已把 Manifest、状态、响应、试连受理及心跳证明关联到 operation 和 requestId；旧发布计数接口暂留兼容。送餐车仍使用私有 TLS runtime，尚未迁入公共 `mqtt_runtime`，也未对这个候选做实板回归。
 - `ABoxBootV2Ec800Adapter_Bind()` 位于既有 `abox::boot_v2_app`，统一 OTA owner 的 AT 提交、RAW、URC、取消与接收溢出计数。产品继续提供 tick、MQTT 暂停/停止和工作区、日志、版本、artifact、Flash 布局及传输缓冲区；App OTA 状态机仍是原有 `ABoxBootV2App`。
 - Enrollment 的 TLS 凭据按产品声明的预期 profile 字符串校验；既有默认值为 1，底盘显式声明 0。profile 不匹配时拒绝进入候选试连，明文入网的现有行为不变。服务端仍按产品专属 hardwareContract 决定入网策略。
+- `ABoxEc800Iccid` 在同一 AT owner 中查询、解析并复位 SIM 身份；三产品 adapter 已移除重复的 `AT+QCCID` 处理。`ABoxMqttRuntimeOptions_StandardEc800()` 集中标准板的 client、TLS context、CA 与超时参数，底盘和清扫车仅声明 owner/profile 及特殊测试超时。
+- `ABoxEnrollmentIdentity_Build()` 统一 STM32 UID 与 fallback VID 的有界格式化，产品显式提供 prefix、已分配 VID 判据和 hardwareContract。`ABoxEnrollmentService` 托管 HTTPS/HTTP cleanup、MQTT 暂停、入网轮询与试连结果推进；产品留下网络就绪、身份、配置需求、试连及持久化 callback。三个产品均已接入，Flash codec 与产品身份未变。
 
-公共 Port 和 Boot V2 EC800 App 适配已在三产品源码接入；三个产品的 ARM Release 构建通过。Platform GCC/Ninja 主机测试 25 项、底盘主机测试 39 项、清扫车 27 项以及送餐车协议、TLS runtime、适配器与试连证明测试通过。底盘禁用执行器候选在标准测试板完成启动、MQTT READY、Manifest 与状态落库、`get_info`、`sync_state` 和 MCU 重启重连；Debug 故障注入进一步证明候选 proof 超时后恢复原 plain 链路、模组供电重启和目标 Broker 会话断开后重新 READY，Config 页原哈希保持不变。公共 OTA 接线的新底盘候选再次上板，`get_info` 返回 `otaReady=true`、`otaProvisioned=true`、Boot 描述符有效；未实际下载或安装 OTA。清扫车适配器主机测试覆盖迟到旧回执，ARM Release RAM 仍为 61,432/65,536 字节；清扫车与送餐车当前源码候选尚未上板。测试板已恢复原 App/State。字面 `RDY`、完整蜂窝断网、真实迟到 PUBACK、OTA 占用和实车行为仍无实板证据；详见底盘仓 `docs/operations/evidence/2026-09-29-cloud-port-stage1/`。正式产品发布状态由各产品 `dist/` 和验收记录决定。
+三个产品的 ARM Release 构建通过。Platform GCC/Ninja 主机测试 28 项、底盘主机测试 39 项、清扫车 27 项以及送餐车协议、TLS runtime、adapter、Profile、Boot 合同测试通过。底盘既有 cp1/fi2/cp2 台架证据仍有效；新增禁用执行器的 cp5 在标准测试板上擦除 Config 页后，按底盘 hardwareContract 发起 HTTPS 入网，服务器请求经测试板批准到 `verified`，MQTT 首连和 Config V5 400 字节持久化完成，独立 `get_info` 返回 200、READY、ICCID 与 OTA ready。测试板现运行 cp5；这轮入网已轮换其测试凭据。清扫车和送餐车本轮源码候选尚未上板。字面 `RDY`、完整蜂窝断网、真实迟到 PUBACK、OTA 占用与实车行为仍无新实板证据；见底盘仓 `docs/operations/evidence/2026-09-29-platform-enrollment-service/`。正式发布状态仍由各产品 `dist/` 与验收记录决定。
 
 ## 下一阶段入口
 
