@@ -1,6 +1,24 @@
 #include "abox_mqtt_runtime.h"
 #include <stdio.h>
 #include <string.h>
+void ABoxMqttRuntimeOptions_StandardEc800(ABoxMqttRuntimeOptions *o,
+                                          uint32_t owner,
+                                          uint8_t tls_profile_id) {
+  if (!o) return;
+  memset(o, 0, sizeof(*o));
+  o->owner = owner;
+  o->command_timeout_ms = 5000U;
+  o->tls_timeout_ms = 30000U;
+  o->connect_timeout_ms = 60000U;
+  o->subscribe_timeout_ms = 60000U;
+  o->ca_file = "UFS:ota_ca.pem";
+  o->ca_revision = 1U;
+  o->plain_client = 0U;
+  o->tls_client = 1U;
+  o->tls_context = 2U;
+  o->tls_profile_id = tls_profile_id;
+  o->supported_tls_context_mask = (uint8_t)(1U << 2U);
+}
 static uint8_t copy_text(char *d, uint16_t c, const char *s) {
   size_t n;
   if (!d || !c || !s)

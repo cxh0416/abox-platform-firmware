@@ -67,6 +67,11 @@ typedef struct {
   uint8_t plain_client, tls_client, tls_context, tls_profile_id,
       supported_tls_context_mask;
 } ABoxMqttRuntimeOptions;
+/* Standard STM32F105/EC800 wiring; callers still supply product lifecycle
+ * callbacks and may override timeouts for a bench fault-injection build. */
+void ABoxMqttRuntimeOptions_StandardEc800(ABoxMqttRuntimeOptions *,
+                                          uint32_t owner,
+                                          uint8_t tls_profile_id);
 typedef struct {
   ABoxMqttRuntimePort callbacks;
   ABoxMqttRuntimeOptions options;

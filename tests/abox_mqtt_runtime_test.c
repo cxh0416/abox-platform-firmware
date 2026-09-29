@@ -52,6 +52,16 @@ static void revoke(void *context) { ++((Fixture *)context)->revokes; }
 
 int main(void)
 {
+    ABoxMqttRuntimeOptions standard;
+    ABoxMqttRuntimeOptions_StandardEc800(&standard, 20U, 0U);
+    assert(standard.owner == 20U && standard.tls_profile_id == 0U);
+    assert(standard.plain_client == 0U && standard.tls_client == 1U);
+    assert(standard.tls_context == 2U && standard.supported_tls_context_mask == 4U);
+    assert(standard.command_timeout_ms == 5000U &&
+           standard.tls_timeout_ms == 30000U &&
+           standard.connect_timeout_ms == 60000U &&
+           standard.subscribe_timeout_ms == 60000U);
+    assert(strcmp(standard.ca_file, "UFS:ota_ca.pem") == 0);
     Fixture f = {0};
     ABoxEc800At at;
     ABoxEc800AtPort at_port = {0};
