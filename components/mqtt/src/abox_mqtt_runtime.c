@@ -104,6 +104,7 @@ static void event(ABoxEc800Event e, const uint8_t *d, uint16_t n, void *u) {
     return;
   }
   if (r->state == ABOX_MQTT_RUNTIME_PROBE_TLS &&
+      ABoxEc800At_IsActive(r->adapter.at, r->options.owner) &&
       sscanf(l, "+QSSLCFG: \"sslversion\",(%u-%u)", &low, &high) == 2 &&
       low <= r->options.tls_context && high >= r->options.tls_context)
     r->tls_probe_supported = 1U;
