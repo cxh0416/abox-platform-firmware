@@ -59,6 +59,21 @@ typedef struct {
   void (*before_network_change)(void *);
   void (*state_changed)(void *, ABoxMqttRuntimeState, const char *);
 } ABoxMqttRuntimePort;
+/* Adapter for the common product MQTT_Core API. The table must outlive the
+ * runtime; lifecycle callbacks may use port.user to recover product context. */
+typedef struct {
+  void (*set_paused)(uint8_t);
+  void (*set_security_ready)(uint8_t);
+  uint8_t (*apply_config)(const ABoxMqttConfig *);
+  void (*task)(void);
+  void (*modem_reset)(void);
+  int (*stop)(uint32_t);
+  uint8_t (*ready)(void);
+  uint8_t (*connected)(void);
+} ABoxMqttRuntimeCoreApi;
+/* Fill only transport slots; the caller supplies CA/time/network policy. */
+int ABoxMqttRuntimePort_BindCore(ABoxMqttRuntimePort *port,
+                                  const ABoxMqttRuntimeCoreApi *api);
 typedef struct {
   uint32_t owner, command_timeout_ms, tls_timeout_ms, connect_timeout_ms,
       subscribe_timeout_ms;
