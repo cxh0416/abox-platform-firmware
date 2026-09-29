@@ -25,6 +25,15 @@ static void finish(ABoxEnrollmentEc800Http *h, int clean)
 
 static void stop_http(ABoxEnrollmentEc800Http *h)
 {
+    /* PDP/TLS configuration has not opened an HTTP session. QHTTPSTOP may
+     * return ERROR here; that is not evidence of an unclosed HTTP lease. */
+    if ((h->state >= ABOX_ENROLL_HTTP_TLS_VERSION &&
+         h->state <= ABOX_ENROLL_HTTP_RESP_HEADER) ||
+        h->state == ABOX_ENROLL_HTTP_PDP_QUERY ||
+        h->state == ABOX_ENROLL_HTTP_PDP_ACTIVATE) {
+        finish(h, 1);
+        return;
+    }
     h->state = ABOX_ENROLL_HTTP_STOP;
     if (!submit(h, "AT+QHTTPSTOP", 10000U)) finish(h, 0);
 }

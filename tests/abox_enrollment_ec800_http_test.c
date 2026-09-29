@@ -60,10 +60,23 @@ int main(void)
     ABoxEc800At_Task(&at);
     CHECK(strstr(sent, "QIACT?") != NULL);
     feed(&at, "ERROR\r\n");
+    CHECK(result.calls == 2U && result.status == 0U && result.clean);
+    CHECK(ABoxEnrollmentEc800Http_Ready(&http));
+    CHECK(ABoxEnrollmentEc800Http_Post(&http, "https://ota.example/poll", "{}",
+                                       response, sizeof(response)));
+    for (i = 0U; i < 11U; ++i) {
+        ABoxEc800At_Task(&at);
+        feed(&at, "OK\r\n");
+    }
+    ABoxEc800At_Task(&at);
+    CHECK(strstr(sent, "QHTTPURL") != NULL);
+    feed(&at, "ERROR\r\n");
     ABoxEc800At_Task(&at);
     CHECK(strstr(sent, "QHTTPSTOP") != NULL);
-    feed(&at, "OK\r\n");
-    CHECK(result.calls == 2U && result.status == 0U);
+    feed(&at, "ERROR\r\n");
+    CHECK(result.calls == 3U && result.status == 0U && !result.clean);
+    CHECK(!ABoxEnrollmentEc800Http_Ready(&http));
+    ABoxEnrollmentEc800Http_AfterModemReset(&http);
     CHECK(ABoxEnrollmentEc800Http_Ready(&http));
     puts("EC800 HTTPS POST completed read and next request passed");
     return 0;
