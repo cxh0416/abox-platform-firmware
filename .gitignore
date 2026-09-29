@@ -1,6 +1,7 @@
 build/
 build-*/
 build_host*/
+__pycache__/
 out/
 dist/
 *.bin
