@@ -14,6 +14,7 @@
 - Enrollment 的 TLS 凭据按产品声明的预期 profile 字符串校验；既有默认值为 1，底盘显式声明 0。profile 不匹配时拒绝进入候选试连，明文入网的现有行为不变。服务端仍按产品专属 hardwareContract 决定入网策略。
 - `ABoxEc800Iccid` 在同一 AT owner 中查询、解析并复位 SIM 身份；三产品 adapter 已移除重复的 `AT+QCCID` 处理。`ABoxMqttRuntimeOptions_StandardEc800()` 集中标准板的 client、TLS context、CA 与超时参数，底盘和清扫车仅声明 owner/profile 及特殊测试超时。
 - `ABoxEnrollmentIdentity_Build()` 统一 STM32 UID 与 fallback VID 的有界格式化，产品显式提供 prefix、已分配 VID 判据和 hardwareContract。`ABoxEnrollmentService` 托管 HTTPS/HTTP cleanup、MQTT 暂停、入网轮询与试连结果推进；产品留下网络就绪、身份、配置需求、试连及持久化 callback。三个产品均已接入，Flash codec 与产品身份未变。
+- `tools/publish_release.py` 使用产品声明的 `release_contract.json` 校验冻结 Boot 哈希、App 向量与 Flash 上界、版本标记、原有 Manifest/产物哈希、Full 的 Boot+App 拼接，再复制到暂存目录复核并整体替换 `dist/`；失败时保留或恢复旧目录。产品仍负责构建、产品专属额外校验和现有 Manifest 字段。三个现有正式包已只读通过新合同；Platform 主机测试覆盖损坏产物拒绝与替换失败回滚，新的候选固件尚未借此正式发布。
 
 三个产品的 ARM Release 构建通过。Platform GCC/Ninja 主机测试 31 项、底盘主机测试 39 项、清扫车 27 项以及送餐车协议、TLS runtime、adapter、Profile、Boot 合同测试通过。底盘既有 cp1/fi2/cp2 台架证据仍有效；禁用执行器的 cp5 以及接入公共 executor 的 0.2.48-cp1 在标准测试板按底盘 hardwareContract 完成 HTTPS 入网、MQTT 首连、Config V5 持久化及独立 `get_info`。清扫车 cp1 与接入公共 executor 的 1.3.7-cp1 也在同一标准板完成入网、试连证明及 Config V3 头部回读。送餐车 1.1.24 完成入网、明文 MQTT 候选心跳证明、Config V2 持久化及独立 `get_info`；1.1.25 在 Broker 主动断开导致 AT 隔离后，模组电源轨重启并恢复 MQTT 与 OTA ready；1.1.26 在原配置上执行同参数 `set_mqtt`，收到 202、心跳证明后 trial 状态到 COMMITTED，独立 `get_info` 返回 200。1.1.27 首次将启动三报文接入公共 Cloud 核心，空配置时暴露 NOLOAD trial executor 未初始化导致的 HardFault，已拒绝该候选；1.1.28 修复初始化顺序后重新入网 verified；1.1.29 的关联状态报告及失败候选恢复、1.1.30 的周期心跳与 Broker kick 后恢复均通过标准板验证。各仓的 `docs/operations/evidence/2026-09-29-platform-*` 保留证据。1.1.26 首次刷写后冻结 Boot 曾停在 pre-App Error_Handler，手动复位及后续复位成功；该偶发现象尚未归因，不能算冷启动稳定性通过。完整蜂窝断网、真实迟到 PUBACK、OTA 资源占用及实车行为仍无对应实板证据。正式发布状态仍由各产品 `dist/` 与验收记录决定。
 
@@ -22,6 +23,6 @@
 1. 巡防底盘台架继续补完整蜂窝断网、字面模组 RDY、真实迟到 PUBACK、OTA 占用和 candidate 成功矩阵；已完成的 fault injection 和 Broker kick 分别记录，不能把它们等同于所有网络故障。送餐车 1.1.26 的一次 pre-App Boot 停机须继续查明，并做冷启动复现。
 2. 清扫车已把状态报告证明接到 operation 机制，送餐车已把心跳证明接到 operation 机制；三产品现均使用公共 trial executor。送餐车私有 TLS runtime 仍待接入已有公共 `mqtt_runtime`，避免抽取第二个竞争性 runtime。保留各自 proof 类型、响应码和业务状态。
 3. 将 `ABoxCloudService` 从送餐车已验证的启动、关联状态与心跳扩展到公共响应队列、事件调度和 Profile dispatch，再迁移底盘与清扫车；现有公共接口尚未接管 JSON 包络、命令幂等、维护和 App OTA。产品提供身份与 Profile、静态资源、状态 provider、command handler、Config codec、维护/OTA 安全 callback；App 不因组件数量增加而增加 EC800 owner 或通信任务。底盘与清扫车仅剩约 4 KiB RAM guard，迁移必须替换重复状态而非简单叠加一个服务对象。
-4. Enrollment/OTA 默认适配和统一发布引擎须作为独立提交，并分别验证现有协议、Boot/Flash 布局、配置持久化及失败回滚。旧产品先用 codec 保留字节 ABI；不能把三种 Flash 格式强转为同一结构。
+4. 继续上收 Enrollment/OTA 默认适配与发布清单生成；公共发布校验和目录替换已落地，仍需在通过产品验收后的下一次正式发布中验证整条入口。旧产品先用 codec 保留字节 ABI；不能把三种 Flash 格式强转为同一结构。
 
 标准目标只决定引脚、电平和端口时序。OUT 通道的负载语义、动作顺序、运动或开锁准入、健康判据仍由产品实现；不同 MCU/板卡需提供自己的 Hardware Contract，不得将 STM32F105 假设放入公共业务组件。
