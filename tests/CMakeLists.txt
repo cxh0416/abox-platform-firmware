@@ -51,3 +51,6 @@ add_test(NAME abox_ec800_mqtt_rx_route_test COMMAND abox_ec800_mqtt_rx_route_tes
 add_executable(abox_mqtt_receipt_test abox_mqtt_receipt_test.c)
 target_link_libraries(abox_mqtt_receipt_test PRIVATE abox::mqtt_ec800)
 add_test(NAME abox_mqtt_receipt_test COMMAND abox_mqtt_receipt_test)
+add_executable(abox_boot_v2_ec800_port_test abox_boot_v2_ec800_port_test.c)
+target_link_libraries(abox_boot_v2_ec800_port_test PRIVATE abox::boot_v2_app)
+add_test(NAME abox_boot_v2_ec800_port_test COMMAND abox_boot_v2_ec800_port_test)
