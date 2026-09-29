@@ -86,6 +86,10 @@ add_test(NAME abox_mqtt_trial_executor_test COMMAND abox_mqtt_trial_executor_tes
 add_executable(abox_cloud_service_test abox_cloud_service_test.c)
 target_link_libraries(abox_cloud_service_test PRIVATE abox::cloud_service)
 add_test(NAME abox_cloud_service_test COMMAND abox_cloud_service_test)
+
+add_executable(abox_cloud_internal_v2_test abox_cloud_internal_v2_test.c)
+target_link_libraries(abox_cloud_internal_v2_test PRIVATE abox::cloud_service)
+add_test(NAME abox_cloud_internal_v2_test COMMAND abox_cloud_internal_v2_test)
 add_executable(abox_log_ring_test abox_log_ring_test.c)
 target_link_libraries(abox_log_ring_test PRIVATE abox::log_ring)
 add_test(NAME abox_log_ring_test COMMAND abox_log_ring_test)

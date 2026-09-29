@@ -39,6 +39,7 @@ function(abox_platform_attach_components target)
             "mqtt_tls:ec800_tls" "mqtt_runtime:mqtt_tls"
             "mqtt_runtime:ec800_command_port" "mqtt_ec800:ec800"
             "mqtt_ec800:mqtt_ec800_rx" "enrollment:cjson"
+            "cloud_service:cjson"
             "enrollment_ec800_http:ec800" "boot_v2_common:core"
             "boot_v2_app:boot_v2_common" "boot_v2_app:https_ufs_downloader")
         string(REPLACE ":" ";" pair "${requirement}")
