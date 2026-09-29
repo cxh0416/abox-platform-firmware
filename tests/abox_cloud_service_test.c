@@ -93,6 +93,18 @@ int main(void)
     job = next(&service, 214U, ABOX_CLOUD_JOB_STATE);
     assert(strcmp(job.reason, "second") == 0);
     confirm(&service, &job, 23U, 214U);
+    assert(ABoxCloudService_QueueStateReport(&service, "report-1", "command_result"));
+    job = next(&service, 215U, ABOX_CLOUD_JOB_STATE);
+    assert(strcmp(job.request_id, "report-1") == 0);
+    assert(strcmp(job.reason, "command_result") == 0);
+    assert(ABoxCloudService_Begin(&service, &job, 24U, 215U));
+    assert(ABoxCloudService_QueueStateReport(&service, "report-2", "sync_state"));
+    assert(ABoxCloudService_Receipt(&service, job.generation, 24U, 1, 216U)
+           == ABOX_CLOUD_JOB_STATE);
+    job = next(&service, 216U, ABOX_CLOUD_JOB_STATE);
+    assert(strcmp(job.request_id, "report-2") == 0);
+    assert(strcmp(job.reason, "sync_state") == 0);
+    confirm(&service, &job, 25U, 216U);
     job = next(&service, 1207U, ABOX_CLOUD_JOB_HEARTBEAT);
     confirm(&service, &job, 21U, 1207U);
     assert(!ABoxCloudService_Next(&service, 1208U, &job));

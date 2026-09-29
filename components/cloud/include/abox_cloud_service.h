@@ -36,6 +36,8 @@ typedef struct {
     uint32_t status_due;
     uint32_t event_serial;
     uint32_t in_flight_event_serial;
+    uint32_t correlated_serial;
+    uint32_t in_flight_correlated_serial;
     uint64_t operation;
     ABoxCloudJobKind in_flight;
     uint8_t ready;
@@ -45,8 +47,9 @@ typedef struct {
     uint8_t response_sync;
     uint8_t sync_pending;
     uint8_t event_pending;
-    char response_request_id[64];
-    char sync_request_id[64];
+    char response_request_id[65];
+    char sync_request_id[65];
+    char correlated_reason[32];
     char event_reason[32];
 } ABoxCloudService;
 
@@ -58,6 +61,11 @@ int ABoxCloudService_Bootstrapping(const ABoxCloudService *service);
 /* The caller retains its response topic/payload until RESPONSE confirmation. */
 int ABoxCloudService_QueueResponse(ABoxCloudService *service,
                                    const char *request_id, int sync_state);
+/* Queue one full state report correlated to an already accepted product
+ * request. Replacing an older pending report matches legacy last-write-wins
+ * behavior; an old in-flight receipt cannot clear the replacement. */
+int ABoxCloudService_QueueStateReport(ABoxCloudService *service,
+                                      const char *request_id, const char *reason);
 int ABoxCloudService_WakeState(ABoxCloudService *service, const char *reason);
 int ABoxCloudService_Next(ABoxCloudService *service, uint32_t now,
                           ABoxCloudJob *job);
