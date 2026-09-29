@@ -51,6 +51,23 @@ function(abox_platform_attach_components target)
     endforeach()
 endfunction()
 
+# Opt-in standard App HAL/Flash/EC800 power port. Products with a different
+# board or Flash layout continue to supply their own ABoxPlatformPort.
+function(abox_platform_attach_standard_port target)
+    if(NOT TARGET ${target})
+        message(FATAL_ERROR "abox_platform_attach_standard_port: target '${target}' does not exist")
+    endif()
+    cmake_parse_arguments(ABOX_PORT "" "HARDWARE" "" ${ARGN})
+    if(ABOX_PORT_UNPARSED_ARGUMENTS OR ABOX_PORT_KEYWORDS_MISSING_VALUES OR
+            NOT ABOX_PORT_HARDWARE STREQUAL "stm32f105_ec800_v1")
+        message(FATAL_ERROR "abox_platform_attach_standard_port: HARDWARE must be stm32f105_ec800_v1")
+    endif()
+    target_sources(${target} PRIVATE
+        "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../targets/stm32f105_ec800_v1/platform_port_stm32f105.c")
+    target_include_directories(${target} PRIVATE
+        "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../targets/stm32f105_ec800_v1/include")
+endfunction()
+
 function(abox_platform_attach target)
     if(NOT TARGET ${target})
         message(FATAL_ERROR "abox_platform_attach: target '${target}' does not exist")

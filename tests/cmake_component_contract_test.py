@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def configure(name: str, arguments: str, success: bool, diagnostic: str = "",
-              inspect_build: bool = False) -> None:
+              inspect_build: bool = False, extra: str = "") -> None:
     with tempfile.TemporaryDirectory(prefix=f"cmake-{name}-", dir=ROOT / "build") as folder:
         source = Path(folder)
         config = source / "config"
@@ -23,7 +23,8 @@ def configure(name: str, arguments: str, success: bool, diagnostic: str = "",
             f"add_subdirectory(\"{ROOT.as_posix()}\" platform-build)\n"
             "add_executable(consumer consumer.c)\n"
             f"set(ABOX_PRODUCT_CONFIG_DIR \"{config.as_posix()}\")\n"
-            f"abox_platform_attach_components(consumer {arguments})\n",
+            f"abox_platform_attach_components(consumer {arguments})\n"
+            f"{extra}\n",
             encoding="utf-8")
         result = subprocess.run(["cmake", "-S", str(source), "-B", str(source / "build"),
                                  "-G", "Ninja", "-DBUILD_TESTING=OFF"],
@@ -46,6 +47,11 @@ def main() -> None:
     configure("generic-mqtt", "SCHEDULER BAREMETAL COMPONENTS core mqtt_v4", True,
               inspect_build=True)
     configure("hardware", "SCHEDULER BAREMETAL HARDWARE stm32f105_ec800_v1 COMPONENTS core", True)
+    configure("standard-port", "SCHEDULER BAREMETAL HARDWARE stm32f105_ec800_v1 COMPONENTS core ec_power", True,
+              extra="abox_platform_attach_standard_port(consumer HARDWARE stm32f105_ec800_v1)")
+    configure("standard-port-unknown", "SCHEDULER BAREMETAL COMPONENTS core", False,
+              "HARDWARE must be stm32f105_ec800_v1",
+              extra="abox_platform_attach_standard_port(consumer HARDWARE unknown)")
     configure("hardware-mismatch", "SCHEDULER FREERTOS HARDWARE stm32f105_ec800_v1 COMPONENTS core",
               False, "scheduler disagrees")
     configure("scheduler", "SCHEDULER UNKNOWN COMPONENTS core", False, "SCHEDULER")
