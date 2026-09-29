@@ -23,10 +23,34 @@ static void confirm(ABoxCloudService *service, ABoxCloudJob *job,
 int main(void)
 {
     ABoxCloudBootstrap compact;
+    ABoxCloudTxTracker tracker;
     ABoxCloudService service;
     ABoxCloudServiceOptions options = {1000U, 3000U, 0U};
     ABoxCloudJob job;
     uint32_t generation;
+    uint8_t tracked_kind = 0U;
+
+    assert(!ABoxCloudTxTracker_Init(0));
+    assert(ABoxCloudTxTracker_Init(&tracker));
+    assert(sizeof(tracker) <= 16U);
+    assert(!ABoxCloudTxTracker_Begin(&tracker, 0U, 1U));
+    assert(!ABoxCloudTxTracker_Begin(&tracker, 1U, 0U));
+    assert(ABoxCloudTxTracker_Begin(&tracker, 2U, 41U));
+    assert(!ABoxCloudTxTracker_Begin(&tracker, 3U, 42U));
+    generation = tracker.generation;
+    assert(ABoxCloudTxTracker_Receipt(&tracker, generation, 40U, 1,
+                                      &tracked_kind) == ABOX_CLOUD_TX_IGNORED);
+    assert(ABoxCloudTxTracker_Receipt(&tracker, generation, 41U, 0,
+                                      &tracked_kind) == ABOX_CLOUD_TX_FAILED);
+    assert(tracked_kind == 2U && !tracker.kind);
+    assert(ABoxCloudTxTracker_Begin(&tracker, 3U, 42U));
+    ABoxCloudTxTracker_NetworkChanged(&tracker);
+    assert(ABoxCloudTxTracker_Begin(&tracker, 4U, 43U));
+    assert(ABoxCloudTxTracker_Receipt(&tracker, generation, 42U, 1,
+                                      &tracked_kind) == ABOX_CLOUD_TX_IGNORED);
+    assert(ABoxCloudTxTracker_Receipt(&tracker, tracker.generation, 43U, 1,
+                                      &tracked_kind) == ABOX_CLOUD_TX_CONFIRMED);
+    assert(tracked_kind == 4U && !tracker.kind);
 
     assert(!ABoxCloudBootstrap_Init(0));
     assert(ABoxCloudBootstrap_Init(&compact));

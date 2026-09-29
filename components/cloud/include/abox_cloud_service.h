@@ -46,6 +46,29 @@ ABoxCloudJobKind ABoxCloudBootstrap_Receipt(ABoxCloudBootstrap *bootstrap,
                                             uint32_t generation,
                                             uint64_t operation, int confirmed);
 
+/* Compact tracker for product-owned TX schedulers. A receipt from an older
+ * connection or a different publish cannot complete the current operation. */
+typedef struct {
+    uint64_t operation;
+    uint32_t generation;
+    uint8_t kind; /* Product-owned nonzero kind; zero means idle. */
+} ABoxCloudTxTracker;
+
+typedef enum {
+    ABOX_CLOUD_TX_IGNORED = 0,
+    ABOX_CLOUD_TX_CONFIRMED,
+    ABOX_CLOUD_TX_FAILED
+} ABoxCloudTxReceipt;
+
+int ABoxCloudTxTracker_Init(ABoxCloudTxTracker *tracker);
+void ABoxCloudTxTracker_NetworkChanged(ABoxCloudTxTracker *tracker);
+int ABoxCloudTxTracker_Begin(ABoxCloudTxTracker *tracker,
+                             uint8_t kind, uint64_t operation);
+ABoxCloudTxReceipt ABoxCloudTxTracker_Receipt(ABoxCloudTxTracker *tracker,
+                                               uint32_t generation,
+                                               uint64_t operation,
+                                               int confirmed, uint8_t *kind);
+
 typedef struct {
     uint32_t heartbeat_period_ms;
     uint32_t status_period_ms; /* Zero disables periodic state after bootstrap. */

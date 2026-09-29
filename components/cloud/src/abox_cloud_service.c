@@ -90,6 +90,45 @@ ABoxCloudJobKind ABoxCloudBootstrap_Receipt(ABoxCloudBootstrap *bootstrap,
     return kind;
 }
 
+int ABoxCloudTxTracker_Init(ABoxCloudTxTracker *tracker)
+{
+    if (!tracker) return 0;
+    memset(tracker, 0, sizeof(*tracker));
+    tracker->generation = 1U;
+    return 1;
+}
+
+void ABoxCloudTxTracker_NetworkChanged(ABoxCloudTxTracker *tracker)
+{
+    if (!tracker) return;
+    if (++tracker->generation == 0U) tracker->generation = 1U;
+    tracker->operation = 0U;
+    tracker->kind = 0U;
+}
+
+int ABoxCloudTxTracker_Begin(ABoxCloudTxTracker *tracker,
+                             uint8_t kind, uint64_t operation)
+{
+    if (!tracker || !kind || !operation || tracker->kind) return 0;
+    tracker->kind = kind;
+    tracker->operation = operation;
+    return 1;
+}
+
+ABoxCloudTxReceipt ABoxCloudTxTracker_Receipt(ABoxCloudTxTracker *tracker,
+                                               uint32_t generation,
+                                               uint64_t operation,
+                                               int confirmed, uint8_t *kind)
+{
+    if (!tracker || !operation || !tracker->kind ||
+        generation != tracker->generation || operation != tracker->operation)
+        return ABOX_CLOUD_TX_IGNORED;
+    if (kind) *kind = tracker->kind;
+    tracker->kind = 0U;
+    tracker->operation = 0U;
+    return confirmed ? ABOX_CLOUD_TX_CONFIRMED : ABOX_CLOUD_TX_FAILED;
+}
+
 static int copy_text(char *to, unsigned capacity, const char *from)
 {
     unsigned length;
