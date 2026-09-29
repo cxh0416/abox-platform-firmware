@@ -63,9 +63,18 @@ int ABoxEnrollment_Init(ABoxEnrollment *e, const ABoxEnrollmentPort *port,
     e->port = *port;
     e->buffers = *buffers;
     e->origin = origin;
+    e->expected_tls_profile_id = 1U;
     e->due = 1U;
     buffers->request_id[0] = '\0';
     buffers->poll_token[0] = '\0';
+    return 1;
+}
+
+int ABoxEnrollment_SetExpectedTlsProfile(ABoxEnrollment *e, uint8_t profile_id)
+{
+    if (!e || e->state != ABOX_ENROLLMENT_WAITING || e->have_request ||
+        !e->origin) return 0;
+    e->expected_tls_profile_id = profile_id;
     return 1;
 }
 
@@ -118,8 +127,10 @@ static uint32_t retry_after(const cJSON *root)
     return (uint32_t)value * 1000U;
 }
 
-static int credential_parse(ABoxEnrollmentCredential *out, const cJSON *root)
+static int credential_parse(ABoxEnrollmentCredential *out, const cJSON *root,
+                            uint8_t expected_tls_profile_id)
 {
+    char expected_profile[4];
     const cJSON *mqtt = cJSON_GetObjectItemCaseSensitive(root, "mqtt");
     const cJSON *vid = cJSON_GetObjectItemCaseSensitive(root, "vid");
     const cJSON *host = cJSON_GetObjectItemCaseSensitive(mqtt, "host");
@@ -137,7 +148,10 @@ static int credential_parse(ABoxEnrollmentCredential *out, const cJSON *root)
         !safe_text(host->valuestring, 63U, ".-:") || !host->valuestring[0] ||
         !safe_text(user->valuestring, 31U, "_-") || !user->valuestring[0] ||
         !safe_text(password->valuestring, 63U, "_-@.!~") || !password->valuestring[0]) return 0;
-    if (cJSON_IsTrue(tls) && (!cJSON_IsString(profile) || strcmp(profile->valuestring, "1")))
+    (void)snprintf(expected_profile, sizeof(expected_profile), "%u",
+                   (unsigned)expected_tls_profile_id);
+    if (cJSON_IsTrue(tls) && (!cJSON_IsString(profile) ||
+                              strcmp(profile->valuestring, expected_profile)))
         return 0;
     if (!text_copy(out->vid, sizeof(out->vid), vid->valuestring) ||
         !text_copy(out->host, sizeof(out->host), host->valuestring) ||
@@ -145,7 +159,7 @@ static int credential_parse(ABoxEnrollmentCredential *out, const cJSON *root)
         !text_copy(out->password, sizeof(out->password), password->valuestring)) return 0;
     out->port = (uint16_t)port->valuedouble;
     out->tls_enabled = cJSON_IsTrue(tls) ? 1U : 0U;
-    out->tls_profile_id = out->tls_enabled ? 1U : 0U;
+    out->tls_profile_id = out->tls_enabled ? expected_tls_profile_id : 0U;
     return 1;
 }
 
@@ -199,7 +213,7 @@ void ABoxEnrollment_OnHttp(ABoxEnrollment *e, uint16_t status,
     } else if (e->have_request && status == 200U) {
         item = cJSON_GetObjectItemCaseSensitive(root, "status");
         if (cJSON_IsString(item) && !strcmp(item->valuestring, "approved") &&
-            credential_parse(&e->credential, root) &&
+            credential_parse(&e->credential, root, e->expected_tls_profile_id) &&
             e->port.start_trial(e->port.user, &e->credential)) {
             e->state = ABOX_ENROLLMENT_TRIAL;
             e->waiting_trial = 1U;

@@ -8,6 +8,7 @@
 - `ABoxMqttReceipt` 位于现有 `abox::mqtt_ec800` target 内，跟踪单个在途发布的 64 位 transport operation。迟到或不匹配的事件不会完成当前发布；复位或取消使在途结果失败。`SUBMITTED` 仍是待完成状态，`CONFIRMED` 仅表示模组给出该 operation 的发布结果，不等于 Broker 消费或业务成功。
 - 巡防底盘与清扫车已让 Cloud TX 依据精确 operation 推进响应、bootstrap 和各自的 candidate proof。送餐车源码候选也已把 Manifest、状态、响应、试连受理及心跳证明关联到 operation 和 requestId；旧发布计数接口暂留兼容。送餐车仍使用私有 TLS runtime，尚未迁入公共 `mqtt_runtime`，也未对这个候选做实板回归。
 - `ABoxBootV2Ec800Adapter_Bind()` 位于既有 `abox::boot_v2_app`，统一 OTA owner 的 AT 提交、RAW、URC、取消与接收溢出计数。产品继续提供 tick、MQTT 暂停/停止和工作区、日志、版本、artifact、Flash 布局及传输缓冲区；App OTA 状态机仍是原有 `ABoxBootV2App`。
+- Enrollment 的 TLS 凭据按产品声明的预期 profile 字符串校验；既有默认值为 1，底盘显式声明 0。profile 不匹配时拒绝进入候选试连，明文入网的现有行为不变。服务端仍按产品专属 hardwareContract 决定入网策略。
 
 公共 Port 和 Boot V2 EC800 App 适配已在三产品源码接入；三个产品的 ARM Release 构建通过。Platform GCC/Ninja 主机测试 25 项、底盘主机测试 39 项、清扫车 27 项以及送餐车协议、TLS runtime、适配器与试连证明测试通过。底盘禁用执行器候选在标准测试板完成启动、MQTT READY、Manifest 与状态落库、`get_info`、`sync_state` 和 MCU 重启重连；Debug 故障注入进一步证明候选 proof 超时后恢复原 plain 链路、模组供电重启和目标 Broker 会话断开后重新 READY，Config 页原哈希保持不变。公共 OTA 接线的新底盘候选再次上板，`get_info` 返回 `otaReady=true`、`otaProvisioned=true`、Boot 描述符有效；未实际下载或安装 OTA。清扫车适配器主机测试覆盖迟到旧回执，ARM Release RAM 仍为 61,432/65,536 字节；清扫车与送餐车当前源码候选尚未上板。测试板已恢复原 App/State。字面 `RDY`、完整蜂窝断网、真实迟到 PUBACK、OTA 占用和实车行为仍无实板证据；详见底盘仓 `docs/operations/evidence/2026-09-29-cloud-port-stage1/`。正式产品发布状态由各产品 `dist/` 和验收记录决定。
 

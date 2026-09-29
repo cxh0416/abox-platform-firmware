@@ -50,12 +50,16 @@ typedef struct {
     const char *origin;
     ABoxEnrollmentCredential credential;
     uint32_t retry_started, retry_delay;
+    uint8_t expected_tls_profile_id;
     uint8_t have_request, waiting_trial, due, cancelled;
     ABoxEnrollmentState state;
 } ABoxEnrollment;
 
 int ABoxEnrollment_Init(ABoxEnrollment *enrollment, const ABoxEnrollmentPort *port,
                         const ABoxEnrollmentBuffers *buffers, const char *https_origin);
+/* Set from the product hardware contract before the first Poll. Init defaults
+ * to profile 1 for existing products. */
+int ABoxEnrollment_SetExpectedTlsProfile(ABoxEnrollment *enrollment, uint8_t profile_id);
 void ABoxEnrollment_Poll(ABoxEnrollment *enrollment, uint32_t now);
 void ABoxEnrollment_OnHttp(ABoxEnrollment *enrollment, uint16_t status,
                            size_t response_length, int cleanup_ok, uint32_t now);

@@ -111,6 +111,28 @@ int main(void)
     CHECK(e.state == ABOX_ENROLLMENT_CANCELLING && m.cancellations == 1);
     ABoxEnrollment_OnHttp(&e, 0, 0, 1, 0);
     CHECK(e.cancelled && !e.have_request && e.state == ABOX_ENROLLMENT_WAITING);
+
+    /* A product contract may select profile 0. A mismatched credential must
+     * never reach the candidate trial or be silently mapped to profile 1. */
+    CHECK(ABoxEnrollment_Init(&e, &port, &buffers, "https://ota.example:20443"));
+    CHECK(e.expected_tls_profile_id == 1U);
+    CHECK(ABoxEnrollment_SetExpectedTlsProfile(&e, 0U));
+    ABoxEnrollment_Poll(&e, 0U);
+    reply(&e, response, 201,
+          "{\"requestId\":\"request-4\",\"pollToken\":\"token-4\",\"retryAfterSec\":1}", 1, 1U);
+    ABoxEnrollment_Poll(&e, 1001U);
+    reply(&e, response, 200,
+          "{\"status\":\"approved\",\"vid\":\"CANON001\",\"mqtt\":{\"host\":\"mqtt.example\","
+          "\"port\":19888,\"username\":\"abox_device\",\"password\":\"secret-1\","
+          "\"tlsEnabled\":true,\"tlsProfileId\":\"1\"}}", 1, 1002U);
+    CHECK(e.state == ABOX_ENROLLMENT_WAITING && m.trials == 2U);
+    ABoxEnrollment_Poll(&e, 121002U);
+    reply(&e, response, 200,
+          "{\"status\":\"approved\",\"vid\":\"CANON001\",\"mqtt\":{\"host\":\"mqtt.example\","
+          "\"port\":19888,\"username\":\"abox_device\",\"password\":\"secret-1\","
+          "\"tlsEnabled\":true,\"tlsProfileId\":\"0\"}}", 1, 121003U);
+    CHECK(e.state == ABOX_ENROLLMENT_TRIAL && m.trials == 3U);
+    CHECK(m.last_credential.tls_enabled && m.last_credential.tls_profile_id == 0U);
     puts("ABox enrollment request, polling, cleanup, retry, trial and cancellation passed");
     return 0;
 }
