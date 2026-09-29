@@ -46,6 +46,7 @@ static int transport_stop(void *context, uint32_t now)
 }
 static uint8_t connected(void *context) { return ((Fixture *)context)->connected; }
 static uint8_t ready(void *context) { return ((Fixture *)context)->ready; }
+static uint8_t clock_invalid(void *context) { (void)context; return 0U; }
 static uint8_t yes(void *context) { (void)context; return 1U; }
 static void revoke(void *context) { ++((Fixture *)context)->revokes; }
 
@@ -84,6 +85,15 @@ int main(void)
     f.ready = 1U; ABoxMqttRuntime_Poll(&runtime, 3U);
     assert(ABoxMqttRuntime_IsReady(&runtime));
     assert(strcmp(ABoxMqttRuntime_ActiveConfig(&runtime)->host, "first.example") == 0);
+    runtime.callbacks.time_valid = clock_invalid;
+    ABoxMqttRuntime_Poll(&runtime, 2002U);
+    ABoxEc800At_Task(&at);
+    assert(strstr(f.last_command, "AT+CCLK?") != 0);
+    ABoxEc800At_Feed(&at, (const uint8_t *)"\r\nOK\r\n", 6U);
+    ABoxMqttRuntime_Poll(&runtime, 2003U);
+    assert(!runtime.waiting && ABoxMqttRuntime_IsReady(&runtime));
+    runtime.callbacks.time_valid = yes;
+
 
     assert(ABoxMqttRuntime_Stage(&runtime, &next));
     assert(ABoxMqttRuntime_Activate(&runtime, 4U));

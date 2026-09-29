@@ -329,11 +329,29 @@ static void stop_poll(ABoxMqttRuntime *r, uint32_t now)
 }
 void ABoxMqttRuntime_Poll(ABoxMqttRuntime *r, uint32_t now) {
   ABoxAsyncStatus s;
-  if (!r || !r->initialized || r->state == ABOX_MQTT_RUNTIME_READY ||
+  if (!r || !r->initialized ||
       r->state == ABOX_MQTT_RUNTIME_FAILED ||
       r->state == ABOX_MQTT_RUNTIME_UNENROLLED ||
       r->state == ABOX_MQTT_RUNTIME_BLOCKED)
     return;
+  if (r->state == ABOX_MQTT_RUNTIME_READY) {
+    /* Plain MQTT also carries timestamped V4 business messages. Query the
+     * modem clock after connection; TLS already obtains it before binding.
+     * Keep command ownership and retry spacing in the shared runtime. */
+    if (r->waiting) {
+      s = r->command.poll(r->command.context, r->operation);
+      if (s == ABOX_ASYNC_PENDING) return;
+      r->waiting = 0;
+      r->started = now;
+    }
+    if (!r->callbacks.time_valid(r->callbacks.user) &&
+        (uint32_t)(now - r->started) >= 2000U) {
+      r->waiting = (uint8_t)r->command.submit(r->command.context, "AT+CCLK?",
+                              r->options.command_timeout_ms, &r->operation);
+      r->started = now;
+    }
+    return;
+  }
   if (r->state >= ABOX_MQTT_RUNTIME_STOP_WAIT_DRAIN &&
       r->state <= ABOX_MQTT_RUNTIME_STOP_UNBIND) {
     stop_poll(r, now);

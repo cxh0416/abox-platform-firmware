@@ -19,7 +19,8 @@ typedef enum {
     ABOX_ENROLL_HTTP_TLS_CA, ABOX_ENROLL_HTTP_CONTEXT,
     ABOX_ENROLL_HTTP_SSL_CONTEXT, ABOX_ENROLL_HTTP_REQ_HEADER,
     ABOX_ENROLL_HTTP_RESP_HEADER, ABOX_ENROLL_HTTP_URL,
-    ABOX_ENROLL_HTTP_POST, ABOX_ENROLL_HTTP_READ, ABOX_ENROLL_HTTP_STOP
+    ABOX_ENROLL_HTTP_POST, ABOX_ENROLL_HTTP_READ, ABOX_ENROLL_HTTP_STOP,
+    ABOX_ENROLL_HTTP_PDP_QUERY, ABOX_ENROLL_HTTP_PDP_ACTIVATE
 } ABoxEnrollmentHttpState;
 
 typedef struct {
@@ -32,7 +33,7 @@ typedef struct {
     size_t response_capacity, response_length;
     uint32_t expected_length;
     uint16_t status;
-    uint8_t url_sent, body_sent, overflow, cancelling, blocked;
+    uint8_t url_sent, body_sent, overflow, cancelling, blocked, pdp_active;
     ABoxEnrollmentHttpState state;
     char command[112];
 } ABoxEnrollmentEc800Http;

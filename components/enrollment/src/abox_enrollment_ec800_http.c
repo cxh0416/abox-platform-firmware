@@ -25,6 +25,15 @@ static void finish(ABoxEnrollmentEc800Http *h, int clean)
 
 static void stop_http(ABoxEnrollmentEc800Http *h)
 {
+    /* PDP/TLS configuration has not opened an HTTP session. QHTTPSTOP may
+     * return ERROR here; that is not evidence of an unclosed HTTP lease. */
+    if ((h->state >= ABOX_ENROLL_HTTP_TLS_VERSION &&
+         h->state <= ABOX_ENROLL_HTTP_RESP_HEADER) ||
+        h->state == ABOX_ENROLL_HTTP_PDP_QUERY ||
+        h->state == ABOX_ENROLL_HTTP_PDP_ACTIVATE) {
+        finish(h, 1);
+        return;
+    }
     h->state = ABOX_ENROLL_HTTP_STOP;
     if (!submit(h, "AT+QHTTPSTOP", 10000U)) finish(h, 0);
 }
@@ -43,6 +52,17 @@ static void command_done(ABoxEc800Result result, void *user)
         return;
     }
     switch (h->state) {
+    case ABOX_ENROLL_HTTP_PDP_QUERY:
+        if (!h->pdp_active) {
+            h->state = ABOX_ENROLL_HTTP_PDP_ACTIVATE;
+            if (!submit(h, "AT+QIACT=1", 150000U)) stop_http(h);
+            break;
+        }
+        /* fall through */
+    case ABOX_ENROLL_HTTP_PDP_ACTIVATE:
+        h->state = ABOX_ENROLL_HTTP_TLS_VERSION;
+        if (!submit(h, "AT+QSSLCFG=\"sslversion\",1,3", 5000U)) stop_http(h);
+        break;
     case ABOX_ENROLL_HTTP_TLS_VERSION:
         h->state = ABOX_ENROLL_HTTP_TLS_LEVEL;
         if (!submit(h, "AT+QSSLCFG=\"seclevel\",1,1", 5000U)) stop_http(h);
@@ -133,6 +153,11 @@ static void on_event(ABoxEc800Event event, const uint8_t *data,
     if (length >= sizeof(line)) return;
     memcpy(line, data, length);
     line[length] = '\0';
+    if (h->state == ABOX_ENROLL_HTTP_PDP_QUERY) {
+        unsigned context_id, active;
+        if (sscanf(line, "+QIACT: %u,%u", &context_id, &active) == 2 && context_id == 1U)
+            h->pdp_active = (uint8_t)(active == 1U);
+    }
     if (!strcmp(line, "CONNECT") && h->state == ABOX_ENROLL_HTTP_URL && !h->url_sent) {
         h->url_sent = ABoxEc800At_SendPayload(h->at, h->owner,
                                               (const uint8_t *)h->url, (uint16_t)strlen(h->url));
@@ -179,8 +204,9 @@ int ABoxEnrollmentEc800Http_Post(ABoxEnrollmentEc800Http *h,
     h->url_sent = 0U; h->body_sent = 0U;
     h->overflow = 0U; h->cancelling = 0U;
     response[0] = '\0';
-    h->state = ABOX_ENROLL_HTTP_TLS_VERSION;
-    if (!submit(h, "AT+QSSLCFG=\"sslversion\",1,3", 5000U)) {
+    h->pdp_active = 0U;
+    h->state = ABOX_ENROLL_HTTP_PDP_QUERY;
+    if (!submit(h, "AT+QIACT?", 5000U)) {
         h->state = ABOX_ENROLL_HTTP_IDLE;
         return 0;
     }
