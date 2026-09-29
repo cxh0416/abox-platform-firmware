@@ -23,7 +23,7 @@ static void confirm(ABoxCloudService *service, ABoxCloudJob *job,
 int main(void)
 {
     ABoxCloudService service;
-    ABoxCloudServiceOptions options = {1000U, 3000U};
+    ABoxCloudServiceOptions options = {1000U, 3000U, 0U};
     ABoxCloudJob job;
     uint32_t generation;
 
@@ -121,5 +121,30 @@ int main(void)
     job = next(&service, 1000U, ABOX_CLOUD_JOB_HEARTBEAT);
     confirm(&service, &job, 34U, 1000U);
     assert(!ABoxCloudService_Next(&service, 1500U, &job));
+
+    options.response_preempts_bootstrap = 1U;
+    assert(ABoxCloudService_Init(&service, &options, 0U));
+    assert(ABoxCloudService_QueueStateReport(&service, "sync-1", "requested"));
+    assert(ABoxCloudService_QueueResponse(&service, "sync-1", 0));
+    ABoxCloudService_SetReady(&service, 1, 10U);
+    job = next(&service, 10U, ABOX_CLOUD_JOB_RESPONSE);
+    assert(strcmp(job.request_id, "sync-1") == 0);
+    assert(ABoxCloudService_Begin(&service, &job, 100U, 10U));
+    ABoxCloudService_CancelResponse(&service);
+    assert(ABoxCloudService_Receipt(&service, job.generation, 100U, 1, 11U)
+           == ABOX_CLOUD_JOB_NONE);
+    assert(ABoxCloudService_QueueResponse(&service, "req-2", 0));
+    job = next(&service, 12U, ABOX_CLOUD_JOB_RESPONSE);
+    assert(strcmp(job.request_id, "req-2") == 0);
+    confirm(&service, &job, 101U, 12U);
+    job = next(&service, 12U, ABOX_CLOUD_JOB_MANIFEST);
+    confirm(&service, &job, 102U, 12U);
+    job = next(&service, 12U, ABOX_CLOUD_JOB_HEARTBEAT);
+    confirm(&service, &job, 103U, 12U);
+    job = next(&service, 12U, ABOX_CLOUD_JOB_STATE);
+    confirm(&service, &job, 104U, 12U);
+    job = next(&service, 12U, ABOX_CLOUD_JOB_STATE);
+    assert(strcmp(job.request_id, "sync-1") == 0);
+    confirm(&service, &job, 105U, 12U);
     return 0;
 }

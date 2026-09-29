@@ -27,6 +27,7 @@ typedef struct {
 typedef struct {
     uint32_t heartbeat_period_ms;
     uint32_t status_period_ms; /* Zero disables periodic state after bootstrap. */
+    uint8_t response_preempts_bootstrap; /* Preserve a product's existing TX priority. */
 } ABoxCloudServiceOptions;
 
 typedef struct {
@@ -61,6 +62,9 @@ int ABoxCloudService_Bootstrapping(const ABoxCloudService *service);
 /* The caller retains its response topic/payload until RESPONSE confirmation. */
 int ABoxCloudService_QueueResponse(ABoxCloudService *service,
                                    const char *request_id, int sync_state);
+/* Dropping an expired product response also invalidates its old operation.
+ * A late confirmation cannot finish a later response. */
+void ABoxCloudService_CancelResponse(ABoxCloudService *service);
 /* Queue one full state report correlated to an already accepted product
  * request. Replacing an older pending report matches legacy last-write-wins
  * behavior; an old in-flight receipt cannot clear the replacement. */

@@ -17,7 +17,8 @@ int ABoxCloudService_Init(ABoxCloudService *service,
 {
     if (!service || !options || !options->heartbeat_period_ms ||
         options->heartbeat_period_ms > INT32_MAX ||
-        options->status_period_ms > INT32_MAX) return 0;
+        options->status_period_ms > INT32_MAX ||
+        options->response_preempts_bootstrap > 1U) return 0;
     memset(service, 0, sizeof(*service));
     service->options = *options;
     service->generation = 1U;
@@ -61,13 +62,26 @@ int ABoxCloudService_Bootstrapping(const ABoxCloudService *service)
 int ABoxCloudService_QueueResponse(ABoxCloudService *service,
                                    const char *request_id, int sync_state)
 {
-    if (!service || service->response_pending || service->sync_pending ||
+    if (!service || service->response_pending ||
+        (sync_state && service->sync_pending) ||
         !request_id || !request_id[0] ||
         !copy_text(service->response_request_id,
                    sizeof(service->response_request_id), request_id)) return 0;
     service->response_pending = 1U;
     service->response_sync = sync_state ? 1U : 0U;
     return 1;
+}
+
+void ABoxCloudService_CancelResponse(ABoxCloudService *service)
+{
+    if (!service) return;
+    service->response_pending = 0U;
+    service->response_sync = 0U;
+    service->response_request_id[0] = '\0';
+    if (service->in_flight == ABOX_CLOUD_JOB_RESPONSE) {
+        service->in_flight = ABOX_CLOUD_JOB_NONE;
+        service->operation = 0U;
+    }
 }
 
 int ABoxCloudService_QueueStateReport(ABoxCloudService *service,
@@ -104,7 +118,10 @@ int ABoxCloudService_Next(ABoxCloudService *service, uint32_t now,
     memset(job, 0, sizeof(*job));
     if (!service->ready || service->in_flight != ABOX_CLOUD_JOB_NONE) return 0;
     job->generation = service->generation;
-    if (service->bootstrap_stage == 1U) job->kind = ABOX_CLOUD_JOB_MANIFEST;
+    if (service->response_pending && service->options.response_preempts_bootstrap) {
+        job->kind = ABOX_CLOUD_JOB_RESPONSE;
+        job->request_id = service->response_request_id;
+    } else if (service->bootstrap_stage == 1U) job->kind = ABOX_CLOUD_JOB_MANIFEST;
     else if (service->bootstrap_stage == 2U) job->kind = ABOX_CLOUD_JOB_HEARTBEAT;
     else if (service->bootstrap_stage == 3U) {
         job->kind = ABOX_CLOUD_JOB_STATE;
