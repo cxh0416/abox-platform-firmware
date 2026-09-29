@@ -40,9 +40,10 @@ Boot 不连接业务平台，也不下载网络固件。产品 App 负责 HTTPS�
 add_subdirectory("${CMAKE_SOURCE_DIR}/../platform" abox_platform_build)
 abox_platform_attach(Product_App)
 abox_platform_attach_boot_v2_app(Product_App)
+abox_platform_attach_standard_port(Product_App HARDWARE stm32f105_ec800_v1)
 ```
 
-平台仓库维护跨设备共用的 MQTT 报文外层、QoS、幂等、心跳、Core 命令和 Profile Registry；产品仓库只维护对应设备 Profile、CAN/RS485、执行器逻辑、状态字段、产品配置结构、App 硬件适配和发布包装。产品仓库不得复制公共 MQTT 协议，也不得复制或局部修改公共 Boot。
+标准 Port 接入为可选项，仅适用于引脚和 EC800 电源接线符合 `stm32f105_ec800_v1` 的 App；其他板卡提供自己的 Hardware Contract/Port。它使用产品 `boot_cfg.h` 的 Flash 布局，不定义输出的业务含义。当前 Platform 已有 MQTT V4 Registry、transport/runtime、Enrollment 和 Boot V2 基础组件；Cloud 编排、产品 Profile/状态/业务及发布包装仍有产品侧代码。新项目接入与迁移门槛见[内部实施说明](docs/internal/new_product_onboarding.md)。产品仓库不得复制公共 MQTT 协议，也不得复制或局部修改公共 Boot。
 
 正式公共基线为 [MQTT V4](docs/protocols/A-BOX设备公共MQTT协议-V4.0.md)；[MQTT V3](docs/protocols/A-BOX设备公共MQTT协议-V3.0.md) 仅供尚未整批迁移的存量项目使用。V4 设备单版本运行，跨项目迁移期间由平台同时保留 V3/V4 Handler。
 
