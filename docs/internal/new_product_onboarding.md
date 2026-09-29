@@ -6,15 +6,15 @@
 
 - `abox_platform_attach_standard_port(<app> HARDWARE stm32f105_ec800_v1)` 明确选择标准硬件目标，并为 App 链接 `platform_port_stm32f105.c`。它提供现有三个产品重复实现的 tick、UART1 同步发送、Flash 擦写/临界区、EC800 电源引脚和上电时序。Flash 地址仍读取产品 `boot_cfg.h`；产品保留启动、特殊外设和安全策略。
 - `ABoxMqttReceipt` 位于现有 `abox::mqtt_ec800` target 内，跟踪单个在途发布的 64 位 transport operation。迟到或不匹配的事件不会完成当前发布；复位或取消使在途结果失败。`SUBMITTED` 仍是待完成状态，`CONFIRMED` 仅表示模组给出该 operation 的发布结果，不等于 Broker 消费或业务成功。
-- 巡防底盘与清扫车已让 Cloud TX 依据精确 operation 推进响应、bootstrap 和各自的 candidate proof。旧发布计数接口暂留供兼容调用；送餐车尚未切换到 receipt。
+- 巡防底盘与清扫车已让 Cloud TX 依据精确 operation 推进响应、bootstrap 和各自的 candidate proof。送餐车源码候选也已把 Manifest、状态、响应、试连受理及心跳证明关联到 operation 和 requestId；旧发布计数接口暂留兼容。送餐车仍使用私有 TLS runtime，尚未迁入公共 `mqtt_runtime`，也未对这个候选做实板回归。
 - `ABoxBootV2Ec800Adapter_Bind()` 位于既有 `abox::boot_v2_app`，统一 OTA owner 的 AT 提交、RAW、URC、取消与接收溢出计数。产品继续提供 tick、MQTT 暂停/停止和工作区、日志、版本、artifact、Flash 布局及传输缓冲区；App OTA 状态机仍是原有 `ABoxBootV2App`。
 
-公共 Port 已在三产品源码接入；三个产品的 ARM Release 构建通过。Platform GCC/Ninja 主机测试 25 项、底盘主机测试 39 项、清扫车 27 项以及送餐车既有协议/适配测试通过。底盘禁用执行器候选随后在标准测试板上完成启动、MQTT READY、Manifest 与状态落库、`get_info`、`sync_state` 和 MCU 重启重连；Debug 故障注入进一步证明候选 proof 超时后恢复原 plain 链路、模组供电重启和目标 Broker 会话断开后重新 READY，Config 页原哈希保持不变。清扫车 Cloud TX 已改用同一 operation receipt，适配器主机测试覆盖迟到旧回执，ARM Release RAM 仍为 61,432/65,536 字节；清扫车 App 尚未上板。测试板已恢复原 App/State。字面 `RDY`、完整蜂窝断网、真实迟到 PUBACK、OTA 占用和实车行为仍无实板证据；详见底盘仓 `docs/operations/evidence/2026-09-29-cloud-port-stage1/`。正式产品发布状态由各产品 `dist/` 和验收记录决定。
+公共 Port 和 Boot V2 EC800 App 适配已在三产品源码接入；三个产品的 ARM Release 构建通过。Platform GCC/Ninja 主机测试 25 项、底盘主机测试 39 项、清扫车 27 项以及送餐车协议、TLS runtime、适配器与试连证明测试通过。底盘禁用执行器候选在标准测试板完成启动、MQTT READY、Manifest 与状态落库、`get_info`、`sync_state` 和 MCU 重启重连；Debug 故障注入进一步证明候选 proof 超时后恢复原 plain 链路、模组供电重启和目标 Broker 会话断开后重新 READY，Config 页原哈希保持不变。公共 OTA 接线的新底盘候选再次上板，`get_info` 返回 `otaReady=true`、`otaProvisioned=true`、Boot 描述符有效；未实际下载或安装 OTA。清扫车适配器主机测试覆盖迟到旧回执，ARM Release RAM 仍为 61,432/65,536 字节；清扫车与送餐车当前源码候选尚未上板。测试板已恢复原 App/State。字面 `RDY`、完整蜂窝断网、真实迟到 PUBACK、OTA 占用和实车行为仍无实板证据；详见底盘仓 `docs/operations/evidence/2026-09-29-cloud-port-stage1/`。正式产品发布状态由各产品 `dist/` 和验收记录决定。
 
 ## 下一阶段入口
 
 1. 巡防底盘台架继续补完整蜂窝断网、字面模组 RDY、真实迟到 PUBACK、OTA 占用和 candidate 成功矩阵；已完成的 fault injection 和 Broker kick 分别记录，不能把它们等同于所有网络故障。
-2. 清扫车已把状态报告证明接到 operation 机制，下一门槛是同硬件 App 实板验证；送餐车 heartbeat 证明仍使用计数，先接公共 `mqtt_runtime` 再迁移，避免抽取第二个 TLS runtime。保留各自 proof 类型、响应码和业务状态。
+2. 清扫车已把状态报告证明接到 operation 机制，送餐车候选已把心跳证明接到 operation 机制；下一门槛分别是 App 实板验证。送餐车私有 TLS runtime 仍待接入已有公共 `mqtt_runtime`，避免抽取第二个竞争性 runtime。保留各自 proof 类型、响应码和业务状态。
 3. 在公共 runtime/transport 接线稳定后，新增 `ABoxCloudService` 组合层：产品提供身份与 Profile、静态资源、状态 provider、command handler、Config codec、维护/OTA 安全 callback；平台托管公共包络、request token、bootstrap、`sync_state`、维护事务及 OTA 响应协调。App 不因组件数量增加而增加 EC800 owner 或通信任务。
 4. Enrollment/OTA 默认适配和统一发布引擎须作为独立提交，并分别验证现有协议、Boot/Flash 布局、配置持久化及失败回滚。旧产品先用 codec 保留字节 ABI；不能把三种 Flash 格式强转为同一结构。
 
