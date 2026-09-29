@@ -22,10 +22,58 @@ static void confirm(ABoxCloudService *service, ABoxCloudJob *job,
 
 int main(void)
 {
+    ABoxCloudBootstrap compact;
     ABoxCloudService service;
     ABoxCloudServiceOptions options = {1000U, 3000U, 0U};
     ABoxCloudJob job;
     uint32_t generation;
+
+    assert(!ABoxCloudBootstrap_Init(0));
+    assert(ABoxCloudBootstrap_Init(&compact));
+    assert(sizeof(compact) < 32U);
+    assert(!ABoxCloudBootstrap_Next(&compact, &job));
+    ABoxCloudBootstrap_SetReady(&compact, 1);
+    assert(ABoxCloudBootstrap_Next(&compact, &job));
+    assert(job.kind == ABOX_CLOUD_JOB_MANIFEST);
+    assert(ABoxCloudBootstrap_Begin(&compact, &job, 1U));
+    assert(ABoxCloudBootstrap_Receipt(&compact, job.generation, 2U, 1) == ABOX_CLOUD_JOB_NONE);
+    assert(ABoxCloudBootstrap_Receipt(&compact, job.generation, 1U, 0) == ABOX_CLOUD_JOB_NONE);
+    assert(ABoxCloudBootstrap_Next(&compact, &job) && job.kind == ABOX_CLOUD_JOB_MANIFEST);
+    assert(ABoxCloudBootstrap_Begin(&compact, &job, 3U));
+    assert(ABoxCloudBootstrap_Receipt(&compact, job.generation, 3U, 1) == ABOX_CLOUD_JOB_MANIFEST);
+    assert(ABoxCloudBootstrap_Next(&compact, &job) && job.kind == ABOX_CLOUD_JOB_HEARTBEAT);
+    assert(ABoxCloudBootstrap_Begin(&compact, &job, 4U));
+    assert(ABoxCloudBootstrap_Receipt(&compact, job.generation, 4U, 1) == ABOX_CLOUD_JOB_HEARTBEAT);
+    assert(ABoxCloudBootstrap_Next(&compact, &job) && job.kind == ABOX_CLOUD_JOB_STATE);
+    assert(strcmp(job.reason, "startup") == 0);
+    assert(ABoxCloudBootstrap_Begin(&compact, &job, 5U));
+    generation = job.generation;
+    ABoxCloudBootstrap_NetworkChanged(&compact);
+    assert(ABoxCloudBootstrap_Receipt(&compact, generation, 5U, 1) == ABOX_CLOUD_JOB_NONE);
+    ABoxCloudBootstrap_SetReady(&compact, 1);
+    assert(ABoxCloudBootstrap_Next(&compact, &job) && job.kind == ABOX_CLOUD_JOB_MANIFEST);
+    assert(ABoxCloudBootstrap_Begin(&compact, &job, 6U));
+    assert(ABoxCloudBootstrap_Receipt(&compact, job.generation, 6U, 1) == ABOX_CLOUD_JOB_MANIFEST);
+    assert(ABoxCloudBootstrap_Next(&compact, &job) && job.kind == ABOX_CLOUD_JOB_HEARTBEAT);
+    assert(ABoxCloudBootstrap_Begin(&compact, &job, 7U));
+    assert(ABoxCloudBootstrap_Receipt(&compact, job.generation, 7U, 1) == ABOX_CLOUD_JOB_HEARTBEAT);
+    assert(ABoxCloudBootstrap_Next(&compact, &job) && job.kind == ABOX_CLOUD_JOB_STATE);
+    assert(strcmp(job.reason, "startup") == 0);
+    assert(ABoxCloudBootstrap_Begin(&compact, &job, 8U));
+    assert(ABoxCloudBootstrap_Receipt(&compact, job.generation, 8U, 1) == ABOX_CLOUD_JOB_STATE);
+    ABoxCloudBootstrap_SetReady(&compact, 0);
+    ABoxCloudBootstrap_SetReady(&compact, 1);
+    assert(ABoxCloudBootstrap_Next(&compact, &job) && job.kind == ABOX_CLOUD_JOB_MANIFEST);
+    assert(ABoxCloudBootstrap_Begin(&compact, &job, 9U));
+    assert(ABoxCloudBootstrap_Receipt(&compact, job.generation, 9U, 1) == ABOX_CLOUD_JOB_MANIFEST);
+    assert(ABoxCloudBootstrap_Next(&compact, &job) && job.kind == ABOX_CLOUD_JOB_HEARTBEAT);
+    assert(ABoxCloudBootstrap_Begin(&compact, &job, 10U));
+    assert(ABoxCloudBootstrap_Receipt(&compact, job.generation, 10U, 1) == ABOX_CLOUD_JOB_HEARTBEAT);
+    assert(ABoxCloudBootstrap_Next(&compact, &job) && job.kind == ABOX_CLOUD_JOB_STATE);
+    assert(strcmp(job.reason, "reconnect") == 0);
+    assert(ABoxCloudBootstrap_Begin(&compact, &job, 11U));
+    assert(ABoxCloudBootstrap_Receipt(&compact, job.generation, 11U, 1) == ABOX_CLOUD_JOB_STATE);
+    assert(!ABoxCloudBootstrap_Active(&compact));
 
     assert(!ABoxCloudService_Init(&service, 0, 0U));
     assert(ABoxCloudService_Init(&service, &options, 100U));

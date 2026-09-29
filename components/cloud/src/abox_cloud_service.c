@@ -2,6 +2,94 @@
 
 #include <string.h>
 
+int ABoxCloudBootstrap_Init(ABoxCloudBootstrap *bootstrap)
+{
+    if (!bootstrap) return 0;
+    memset(bootstrap, 0, sizeof(*bootstrap));
+    bootstrap->generation = 1U;
+    return 1;
+}
+
+void ABoxCloudBootstrap_NetworkChanged(ABoxCloudBootstrap *bootstrap)
+{
+    if (!bootstrap) return;
+    if (++bootstrap->generation == 0U) bootstrap->generation = 1U;
+    bootstrap->ready = 0U;
+    bootstrap->stage = 0U;
+    bootstrap->in_flight = ABOX_CLOUD_JOB_NONE;
+    bootstrap->operation = 0U;
+}
+
+void ABoxCloudBootstrap_SetReady(ABoxCloudBootstrap *bootstrap, int ready)
+{
+    if (!bootstrap) return;
+    if (!ready) {
+        if (bootstrap->ready) ABoxCloudBootstrap_NetworkChanged(bootstrap);
+        return;
+    }
+    if (bootstrap->ready) return;
+    bootstrap->ready = 1U;
+    bootstrap->stage = 1U;
+}
+
+int ABoxCloudBootstrap_Active(const ABoxCloudBootstrap *bootstrap)
+{
+    return bootstrap && bootstrap->ready && bootstrap->stage != 0U;
+}
+
+int ABoxCloudBootstrap_Next(const ABoxCloudBootstrap *bootstrap, ABoxCloudJob *job)
+{
+    if (!bootstrap || !job) return 0;
+    memset(job, 0, sizeof(*job));
+    if (!ABoxCloudBootstrap_Active(bootstrap) ||
+        bootstrap->in_flight != ABOX_CLOUD_JOB_NONE) return 0;
+    job->generation = bootstrap->generation;
+    if (bootstrap->stage == 1U) job->kind = ABOX_CLOUD_JOB_MANIFEST;
+    else if (bootstrap->stage == 2U) job->kind = ABOX_CLOUD_JOB_HEARTBEAT;
+    else if (bootstrap->stage == 3U) {
+        job->kind = ABOX_CLOUD_JOB_STATE;
+        job->reason = bootstrap->ever_ready ? "reconnect" : "startup";
+    } else return 0;
+    return 1;
+}
+
+int ABoxCloudBootstrap_Begin(ABoxCloudBootstrap *bootstrap,
+                             const ABoxCloudJob *job, uint64_t operation)
+{
+    ABoxCloudJob expected;
+    if (!bootstrap || !job || !operation ||
+        !ABoxCloudBootstrap_Next(bootstrap, &expected) ||
+        job->kind != expected.kind || job->generation != expected.generation)
+        return 0;
+    bootstrap->in_flight = job->kind;
+    bootstrap->operation = operation;
+    return 1;
+}
+
+ABoxCloudJobKind ABoxCloudBootstrap_Receipt(ABoxCloudBootstrap *bootstrap,
+                                            uint32_t generation,
+                                            uint64_t operation, int confirmed)
+{
+    ABoxCloudJobKind kind;
+    if (!bootstrap || !operation || generation != bootstrap->generation ||
+        operation != bootstrap->operation ||
+        bootstrap->in_flight == ABOX_CLOUD_JOB_NONE)
+        return ABOX_CLOUD_JOB_NONE;
+    kind = bootstrap->in_flight;
+    bootstrap->in_flight = ABOX_CLOUD_JOB_NONE;
+    bootstrap->operation = 0U;
+    if (!confirmed) return ABOX_CLOUD_JOB_NONE;
+    if (kind == ABOX_CLOUD_JOB_MANIFEST && bootstrap->stage == 1U)
+        bootstrap->stage = 2U;
+    else if (kind == ABOX_CLOUD_JOB_HEARTBEAT && bootstrap->stage == 2U)
+        bootstrap->stage = 3U;
+    else if (kind == ABOX_CLOUD_JOB_STATE && bootstrap->stage == 3U) {
+        bootstrap->stage = 0U;
+        bootstrap->ever_ready = 1U;
+    }
+    return kind;
+}
+
 static int copy_text(char *to, unsigned capacity, const char *from)
 {
     unsigned length;

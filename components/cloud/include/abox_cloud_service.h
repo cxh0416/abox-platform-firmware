@@ -24,6 +24,28 @@ typedef struct {
     const char *request_id;   /* For response and sync_state; valid until next mutation. */
 } ABoxCloudJob;
 
+/* Minimal bootstrap cursor for products whose existing TX scheduler still
+ * owns responses and periodic reports. It needs no payload or request buffers. */
+typedef struct {
+    uint64_t operation;
+    uint32_t generation;
+    ABoxCloudJobKind in_flight;
+    uint8_t ready;
+    uint8_t ever_ready;
+    uint8_t stage;
+} ABoxCloudBootstrap;
+
+int ABoxCloudBootstrap_Init(ABoxCloudBootstrap *bootstrap);
+void ABoxCloudBootstrap_SetReady(ABoxCloudBootstrap *bootstrap, int ready);
+void ABoxCloudBootstrap_NetworkChanged(ABoxCloudBootstrap *bootstrap);
+int ABoxCloudBootstrap_Active(const ABoxCloudBootstrap *bootstrap);
+int ABoxCloudBootstrap_Next(const ABoxCloudBootstrap *bootstrap, ABoxCloudJob *job);
+int ABoxCloudBootstrap_Begin(ABoxCloudBootstrap *bootstrap,
+                             const ABoxCloudJob *job, uint64_t operation);
+ABoxCloudJobKind ABoxCloudBootstrap_Receipt(ABoxCloudBootstrap *bootstrap,
+                                            uint32_t generation,
+                                            uint64_t operation, int confirmed);
+
 typedef struct {
     uint32_t heartbeat_period_ms;
     uint32_t status_period_ms; /* Zero disables periodic state after bootstrap. */
