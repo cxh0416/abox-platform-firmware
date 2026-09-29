@@ -7,6 +7,7 @@
 - `abox_platform_attach_standard_port(<app> HARDWARE stm32f105_ec800_v1)` 明确选择标准硬件目标，并为 App 链接 `platform_port_stm32f105.c`。它提供现有三个产品重复实现的 tick、UART1 同步发送、Flash 擦写/临界区、EC800 电源引脚和上电时序。Flash 地址仍读取产品 `boot_cfg.h`；产品保留启动、特殊外设和安全策略。
 - `abox_platform_attach_standard_app(<app> PRODUCT_CONFIG_DIR <dir> SCHEDULER BAREMETAL|FREERTOS)` 将标准板的组件集合与上述端口一次性链接，并继续执行板型/调度器合同检查。它是新 App 的构建接入入口，不代替 CubeMX 启动文件、产品外设或通信任务的运行 attach；后两者仍需后续阶段完成。
 - `ABoxMqttReceipt` 位于现有 `abox::mqtt_ec800` target 内，跟踪单个在途发布的 64 位 transport operation。迟到或不匹配的事件不会完成当前发布；复位或取消使在途结果失败。`SUBMITTED` 仍是待完成状态，`CONFIRMED` 仅表示模组给出该 operation 的发布结果，不等于 Broker 消费或业务成功。
+- `ABoxMqttV4_BuildTopic()` 统一五个公共 Topic 的构造；三个产品的身份切换与 App 初始化已接入。内部维护 Topic 仍沿用各产品合同，例如清扫车的 `/zxwl/sweeper_vcu/...`，不能用公共 `/zxwl/abox/...` 覆盖。
 - 巡防底盘与清扫车已让 Cloud TX 依据精确 operation 推进响应、bootstrap 和各自的 candidate proof。送餐车也已把 Manifest、状态、响应、试连受理及心跳证明关联到 operation 和 requestId；旧发布计数接口暂留兼容。送餐车仍使用私有 TLS runtime，尚未迁入公共 `mqtt_runtime`。
 - `ABoxEc800Recovery` 对 AT 隔离后的模组电源轨重启做有界冷却判断，产品或 Cloud service 仍需声明 OTA、安全及维护事务是否允许重启。送餐车已接入此门禁，重启后刷新 Enrollment HTTP 和 OTA 网络准备；保持 AT 隔离直到物理 RDY，不能仅靠 MQTT 重连解除。
 - `ABoxMqttTrialExecutor` 将 trial 状态机的六种动作统一排入单个通信 owner 队列；超时或取消后的 RESTORE 抢占尚未执行的旧动作，取动作时校验 session。产品仍决定持久化 codec、证明报文、安全准入和实际 transport 操作。三产品均已接入公共 executor，并在标准测试板分别完成其既有证明类型的正向试连；送餐车又验证了不存在的候选 Broker 超时后恢复旧认证连接和重启持久化。TLS、认证及掉电等负向组合仍需继续验证。

@@ -6,6 +6,9 @@
 
 int main(void)
 {
+    static const char *const suffixes[ABOX_MQTT_V4_TOPIC_COUNT] = {
+        "request", "response", "heartbeat", "manifest", "report"
+    };
     static const ABoxMqttCommandDescriptor commands[] = {
         {"query", "fixture", ABOX_MQTT_COMMAND_QUERY}
     };
@@ -17,6 +20,21 @@ int main(void)
     };
     const ABoxMqttProfileDescriptor *profiles[] = {&profile};
     const ABoxMqttV4Registry registry = {profiles, 1U};
+    char topic[80];
+    char expected[80];
+    size_t i;
+
+    for (i = 0; i < ABOX_MQTT_V4_TOPIC_COUNT; ++i) {
+        assert(ABoxMqttV4_BuildTopic(topic, sizeof(topic), "device-1",
+                                     (ABoxMqttV4Topic)i));
+        strcpy(expected, "/zxwl/abox/device-1/");
+        strcat(expected, suffixes[i]);
+        assert(strcmp(topic, expected) == 0);
+    }
+    assert(!ABoxMqttV4_BuildTopic(topic, 8U, "device-1", ABOX_MQTT_V4_TOPIC_REPORT));
+    assert(topic[0] == '\0');
+    assert(!ABoxMqttV4_BuildTopic(topic, sizeof(topic), "", ABOX_MQTT_V4_TOPIC_REPORT));
+    assert(!ABoxMqttV4_BuildTopic(topic, sizeof(topic), "device-1", ABOX_MQTT_V4_TOPIC_COUNT));
 
     assert(ABoxMqttV4_RegistryValid(&registry));
     assert(ABoxMqttV4_FindProfile(&registry, "fixture") == &profile);

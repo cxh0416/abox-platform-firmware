@@ -42,6 +42,21 @@ typedef struct {
     size_t count;
 } ABoxMqttV4Registry;
 
+typedef enum {
+    ABOX_MQTT_V4_TOPIC_REQUEST = 0,
+    ABOX_MQTT_V4_TOPIC_RESPONSE,
+    ABOX_MQTT_V4_TOPIC_HEARTBEAT,
+    ABOX_MQTT_V4_TOPIC_MANIFEST,
+    ABOX_MQTT_V4_TOPIC_REPORT,
+    ABOX_MQTT_V4_TOPIC_COUNT
+} ABoxMqttV4Topic;
+
+/* Only the five public V4 Topics are common. Internal maintenance Topic roots
+ * differ among existing products and remain part of their frozen contracts.
+ * DeviceId and buffer ownership stay with the product. */
+int ABoxMqttV4_BuildTopic(char *output, size_t capacity, const char *device_id,
+                          ABoxMqttV4Topic topic);
+
 const ABoxMqttProfileDescriptor *ABoxMqttV4_FindProfile(
     const ABoxMqttV4Registry *registry, const char *name);
 int ABoxMqttV4_RegistryValid(const ABoxMqttV4Registry *registry);

@@ -2,6 +2,32 @@
 
 #include <string.h>
 
+int ABoxMqttV4_BuildTopic(char *output, size_t capacity, const char *device_id,
+                          ABoxMqttV4Topic topic)
+{
+    static const char *const suffixes[ABOX_MQTT_V4_TOPIC_COUNT] = {
+        "request", "response", "heartbeat", "manifest", "report"
+    };
+    static const char prefix[] = "/zxwl/abox/";
+    const char *suffix;
+    size_t prefix_len, id_len, suffix_len;
+    if (!output || !capacity) return 0;
+    output[0] = '\0';
+    if (!device_id || !device_id[0] || (unsigned)topic >= ABOX_MQTT_V4_TOPIC_COUNT)
+        return 0;
+    suffix = suffixes[topic];
+    prefix_len = sizeof(prefix) - 1U;
+    id_len = strlen(device_id);
+    suffix_len = strlen(suffix);
+    if (id_len > capacity ||
+        prefix_len + 1U + suffix_len >= capacity - id_len) return 0;
+    memcpy(output, prefix, prefix_len);
+    memcpy(output + prefix_len, device_id, id_len);
+    output[prefix_len + id_len] = '/';
+    memcpy(output + prefix_len + id_len + 1U, suffix, suffix_len + 1U);
+    return 1;
+}
+
 int ABoxMqttV4_RegistryValid(const ABoxMqttV4Registry *registry)
 {
     size_t i, j, k;
