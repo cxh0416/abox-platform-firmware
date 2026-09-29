@@ -9,7 +9,8 @@ void ABoxMqttReceipt_Init(ABoxMqttReceipt *receipt)
 
 int ABoxMqttReceipt_Begin(ABoxMqttReceipt *receipt, uint64_t operation)
 {
-    if (!receipt || !operation || receipt->status == ABOX_MQTT_RECEIPT_PENDING)
+    if (!receipt || !operation || receipt->status == ABOX_MQTT_RECEIPT_PENDING ||
+        operation <= receipt->operation)
         return 0;
     receipt->operation = operation;
     receipt->status = ABOX_MQTT_RECEIPT_PENDING;

@@ -14,6 +14,7 @@ int main(void)
     assert(ABoxMqttReceipt_Get(&receipt, 41U) == ABOX_MQTT_RECEIPT_PENDING);
     ABoxMqttReceipt_OnEvent(&receipt, 41U, ABOX_MQTT_EC800_PUBLISH_CONFIRMED);
     assert(ABoxMqttReceipt_Get(&receipt, 41U) == ABOX_MQTT_RECEIPT_CONFIRMED);
+    assert(!ABoxMqttReceipt_Begin(&receipt, 41U));
     assert(ABoxMqttReceipt_Begin(&receipt, 42U));
     ABoxMqttReceipt_OnEvent(&receipt, 41U, ABOX_MQTT_EC800_PUBLISH_FAILED);
     assert(ABoxMqttReceipt_Get(&receipt, 42U) == ABOX_MQTT_RECEIPT_PENDING);
