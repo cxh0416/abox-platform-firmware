@@ -16,6 +16,7 @@ typedef struct {
     void *done_user;
     ABoxBootV2AtEventFn events;
     void *events_user;
+    void *mqtt_bridge; /* Optional standard App binding; not a Flash ABI. */
 } ABoxBootV2Ec800Adapter;
 
 /* Installs only the common AT/RAW/URC/overflow functions and context.
