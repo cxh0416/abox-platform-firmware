@@ -301,9 +301,19 @@ int ABoxCloudService_Next(ABoxCloudService *service, uint32_t now,
 int ABoxCloudService_BeginExternal(ABoxCloudService *service,
                                    uint64_t operation, uint32_t now)
 {
+    return ABoxCloudService_BeginExternalPriority(service, operation, now, 0);
+}
+
+int ABoxCloudService_BeginExternalPriority(ABoxCloudService *service,
+    uint64_t operation, uint32_t now, int preempt_periodic)
+{
     ABoxCloudJob job;
     if (!service || !operation || !service->ready || service->in_flight ||
-        ABoxCloudService_Next(service, now, &job)) return 0;
+        (ABoxCloudService_Next(service, now, &job) &&
+         !(preempt_periodic && !service->bootstrap_stage &&
+           (job.kind == ABOX_CLOUD_JOB_HEARTBEAT ||
+            (job.kind == ABOX_CLOUD_JOB_STATE && job.reason &&
+             strcmp(job.reason, "periodic") == 0))))) return 0;
     service->in_flight = ABOX_CLOUD_JOB_EXTERNAL;
     service->operation = operation;
     return 1;

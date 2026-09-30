@@ -249,5 +249,10 @@ int main(void)
     assert(ABoxCloudService_Receipt(&service, service.generation, 109U, 1, 17U)
            == ABOX_CLOUD_JOB_EXTERNAL);
     assert(!ABoxCloudService_BeginExternal(&service, 111U, 2000U));
+    assert(ABoxCloudService_BeginExternalPriority(&service, 111U, 2000U, 1));
+    assert(ABoxCloudService_Receipt(&service, service.generation, 111U, 1, 2001U)
+           == ABOX_CLOUD_JOB_EXTERNAL);
+    assert(ABoxCloudService_QueueResponse(&service, "urgent", 0));
+    assert(!ABoxCloudService_BeginExternalPriority(&service, 112U, 2001U, 1));
     return 0;
 }

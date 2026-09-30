@@ -118,6 +118,8 @@ int ABoxCloudService_QueueSyncRequest(ABoxCloudService *service, const char *req
  * the common scheduler has no work. */
 int ABoxCloudService_BeginExternal(ABoxCloudService *service,
                                    uint64_t operation, uint32_t now);
+int ABoxCloudService_BeginExternalPriority(ABoxCloudService *service,
+    uint64_t operation, uint32_t now, int preempt_periodic);
 /* Dropping an expired product response also invalidates its old operation.
  * A late confirmation cannot finish a later response. */
 void ABoxCloudService_CancelResponse(ABoxCloudService *service);
