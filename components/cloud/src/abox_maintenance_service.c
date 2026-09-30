@@ -34,3 +34,35 @@ int ABoxMaintenanceService_Busy(const ABoxMqttTrial *trial)
     return trial && trial->state != ABOX_MQTT_TRIAL_IDLE &&
         trial->state != ABOX_MQTT_TRIAL_COMMITTED && trial->state != ABOX_MQTT_TRIAL_FAILED;
 }
+int ABoxMaintenanceService_RuntimeEvent(ABoxMqttTrial *trial,
+    ABoxMqttTrialExecutor *executor, ABoxMqttRuntimeState state, uint32_t now)
+{
+    ABoxMqttTrialEvent event;
+    ABoxMqttTrialExecutorAction expected, action;
+    ABoxMqttTrialState expected_state;
+    uint64_t session;
+    const ABoxMqttConfig *config;
+    if (!trial || !executor || executor->trial != trial) return -1;
+    switch (state) {
+    case ABOX_MQTT_RUNTIME_PREPARED:
+        event = ABOX_MQTT_TRIAL_PREPARED; expected = ABOX_MQTT_TRIAL_ACTION_CONNECT;
+        expected_state = ABOX_MQTT_TRIAL_CONNECTING; break;
+    case ABOX_MQTT_RUNTIME_CONNECTED:
+        event = ABOX_MQTT_TRIAL_CONNECTED; expected = ABOX_MQTT_TRIAL_ACTION_SUBSCRIBE;
+        expected_state = ABOX_MQTT_TRIAL_SUBSCRIBING; break;
+    case ABOX_MQTT_RUNTIME_READY:
+        event = ABOX_MQTT_TRIAL_SUBSCRIBED; expected = ABOX_MQTT_TRIAL_ACTION_VERIFY;
+        expected_state = ABOX_MQTT_TRIAL_VERIFYING; break;
+    case ABOX_MQTT_RUNTIME_FAILED:
+        ABoxMqttTrial_Event(trial, trial->session, ABOX_MQTT_TRIAL_ERROR, 0U, now);
+        return ABOX_MQTT_TRIAL_ERROR;
+    default: return -1;
+    }
+    ABoxMqttTrial_Event(trial, trial->session, event, 0U, now);
+    if (trial->state == expected_state && ABoxMqttTrialExecutor_HasPending(executor)) {
+        if (!ABoxMqttTrialExecutor_Take(executor, &action, &session, &config) ||
+            action != expected || session != trial->session)
+            ABoxMqttTrial_Event(trial, trial->session, ABOX_MQTT_TRIAL_ERROR, 0U, now);
+    }
+    return event;
+}

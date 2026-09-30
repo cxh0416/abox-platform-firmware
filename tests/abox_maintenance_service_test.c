@@ -1,12 +1,26 @@
 #include "abox_maintenance_service.h"
 #include <assert.h>
 static ABoxMqttTrialExecutorAction last;
-static int accept = 1, writes;
+static int accept = 1, writes, fail_write;
 static int action(void *context, ABoxMqttTrialExecutorAction value,
     uint64_t session, const ABoxMqttConfig *config, uint32_t now)
 { (void)context; (void)session; (void)config; (void)now; last = value; return accept; }
 static int write_snapshot(void *context, const void *snapshot)
-{ (void)context; (void)snapshot; ++writes; return 1; }
+{ (void)context; (void)snapshot; ++writes; return writes != fail_write; }
+static void verify(ABoxMqttTrial *trial, ABoxMqttTrialExecutor *executor,
+    ABoxMaintenanceServicePort *port, const ABoxMqttConfig *config)
+{
+    assert(ABoxMqttTrialExecutor_Init(executor, trial));
+    assert(ABoxMqttTrial_StartFirst(trial, config, 1U, 0U));
+    assert(ABoxMaintenanceService_Poll(trial, executor, port, 1U));
+    assert(ABoxMaintenanceService_RuntimeEvent(trial, executor, ABOX_MQTT_RUNTIME_PREPARED, 2U) == ABOX_MQTT_TRIAL_PREPARED);
+    assert(!ABoxMqttTrialExecutor_HasPending(executor));
+    (void)ABoxMaintenanceService_RuntimeEvent(trial, executor, ABOX_MQTT_RUNTIME_CONNECTED, 3U);
+    (void)ABoxMaintenanceService_RuntimeEvent(trial, executor, ABOX_MQTT_RUNTIME_READY, 4U);
+    assert(trial->state == ABOX_MQTT_TRIAL_VERIFYING);
+    assert(!ABoxMqttTrialExecutor_HasPending(executor));
+    ABoxMqttTrial_Event(trial, trial->session, ABOX_MQTT_TRIAL_PROVED, 1U, 5U);
+}
 int main(void)
 {
     ABoxMqttTrial trial;
@@ -28,5 +42,19 @@ int main(void)
     assert(ABoxMaintenanceService_Commit(&trial, trial.session - 1U, &store,
         &config, &config, 5U) == ABOX_CONFIG_STORE_RECOVERY_FAILED);
     assert(!writes);
+    accept = 1;
+    verify(&trial, &executor, &port, &config);
+    {
+        int stable = 1, candidate = 2;
+        assert(ABoxMaintenanceService_Commit(&trial, trial.session, &store,
+            &candidate, &stable, 6U) == ABOX_CONFIG_STORE_SAVED);
+        assert(trial.state == ABOX_MQTT_TRIAL_COMMITTED && writes == 1);
+        writes = 0; fail_write = 1;
+        verify(&trial, &executor, &port, &config);
+        assert(ABoxMaintenanceService_Commit(&trial, trial.session, &store,
+            &candidate, &stable, 6U) == ABOX_CONFIG_STORE_RECOVERED);
+        assert(trial.state == ABOX_MQTT_TRIAL_RESTORING && writes == 2);
+        assert(ABoxMqttTrialExecutor_HasPending(&executor));
+    }
     return 0;
 }

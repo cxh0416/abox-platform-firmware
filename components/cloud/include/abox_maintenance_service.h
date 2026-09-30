@@ -21,6 +21,12 @@ ABoxConfigStoreResult ABoxMaintenanceService_Commit(ABoxMqttTrial *trial,
     uint64_t session, const ABoxConfigStorePort *store,
     const void *candidate, const void *stable, uint32_t now);
 int ABoxMaintenanceService_Busy(const ABoxMqttTrial *trial);
+/* For runtime ports whose connect/subscribe/verify actions are already driven
+ * by the runtime. Consume only the matching no-op action in this owner event
+ * so a fast readiness/proof event cannot race the next poll. Returns -1 for
+ * an unrelated state, otherwise the delivered trial event. */
+int ABoxMaintenanceService_RuntimeEvent(ABoxMqttTrial *trial,
+    ABoxMqttTrialExecutor *executor, ABoxMqttRuntimeState state, uint32_t now);
 #ifdef __cplusplus
 }
 #endif
