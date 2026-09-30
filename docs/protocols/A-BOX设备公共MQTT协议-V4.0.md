@@ -6,9 +6,9 @@
 
 **状态：Frozen Public Contract（正式冻结）**
 
-**修订日期：2026-09-16**
+**修订日期：2026-09-30**
 
-> 五 Topic、公共消息模型、`command` 控制路由、`reportType + reportName` 上报路由、Manifest 能力治理及第 50 节参数均已冻结。兼容扩展必须遵循第 47 节，改变既有公共语义必须升级公共协议主版本。
+> 五 Topic、公共消息模型、`command` 控制路由、`reportType + reportName` 上报路由、Manifest 能力治理及第 49 节参数均已冻结。兼容扩展必须遵循第 47 节，改变既有公共语义必须升级公共协议主版本。
 
 ---
 
@@ -77,7 +77,7 @@ deviceId
 
 `deviceId` 用于 MQTT Topic，不要求重复出现在每条 Payload 中。
 
-公共业务请求不依赖 `deviceType`、`componentType`、`componentId` 或 `profileType` 进行路由。
+公共业务请求通过 `command` 和业务 `params` 进行路由，设备能力由 Manifest 声明。
 
 ---
 
@@ -1487,6 +1487,7 @@ Manifest 在线确认规则：
 1. **使用 `manifestId` 的产品**：平台只有在当前在线心跳中收到与 Retained Manifest 相同的 `manifestId` 后，才能确认该 Manifest 对应当前在线实例。
 2. **省略 `manifestId` 的产品**：该产品必须满足“同一 `firmware` 唯一决定全部 Profile 及其版本”。平台只有在当前在线心跳中的 `firmware` 与 Retained Manifest 中的 `firmware` 完全一致后，才能确认该 Manifest 对应当前在线实例。
 3. Manifest 尚未完成上述在线确认时，平台不得把其中能力标记为当前在线实例已确认可用。
+4. 平台只有在收到报文版本为 `4.0` 的当前在线心跳并确认对应 Manifest 后才允许下发动作；协议版本或能力状态不明确时不得下发动作。
 
 ---
 
@@ -1827,32 +1828,7 @@ version = "4.0"
 
 ---
 
-## 48. V3 → V4 关系
-
-V4 是公共业务协议主版本升级，不属于 V3 透明兼容扩展。
-
-主要变化：
-
-1. 不再假设一台 A-BOX 只有一个固定 `deviceType`；
-2. 请求统一 `/request`；
-3. 响应统一 `/response`；
-4. 主动业务上报统一 `/report`；
-5. 心跳继续独立 `/heartbeat`；
-6. 新增 `/manifest`；
-7. 控制路由使用 `command`；
-8. 上报路由使用 `reportType + reportName`；
-9. 引入 Manifest Profile 版本治理；
-10. 增加操作分类、请求过期、跨重启安全要求；
-11. 增加统一状态恢复 `sync_state`；
-12. 增加按需的 `instanceId`、`streamId + sequence` 和异步 `requestId`。
-
-迁移按项目整批切换：每个项目的平台 Handler 与该项目全部目标设备同时切换，一个设备固件只运行一个公共协议版本，不实现 V3/V4 双栈。
-
-跨项目迁移期间，共用平台同时保留尚未迁移项目的 V3 Handler 和已迁移项目的 V4 Handler，并按收到的协议版本、心跳和 Manifest 明确选择；当最后一个项目迁移完成后才删除 V3 Handler。平台只有在收到 V4 心跳且确认对应 Manifest 后才允许下发 V4 动作，协议状态不明确时禁止动作下发。
-
----
-
-## 49. V4 公共模型汇总
+## 48. V4 公共模型汇总
 
 ### Request
 
@@ -1917,7 +1893,7 @@ data
 
 ---
 
-## 50. 正式冻结参数汇总
+## 49. 正式冻结参数汇总
 
 V4.0 架构和实现性参数均已冻结：
 
@@ -1936,7 +1912,6 @@ V4.0 架构和实现性参数均已冻结：
 13. Epoch 和安全整数边界、词法及非法值固定向量随协议归档；
 14. `sync_state` 等待超时固定为 15 秒；
 15. Command、ReportName 和 Profile 以机器可校验 Registry 为唯一登记入口；
-16. 平台跨项目双栈，设备按项目整批迁移且单版本运行。
 
 以上冻结参数不得重新改变：
 
@@ -1958,7 +1933,7 @@ Manifest 能力治理
 
 ---
 
-## 51. 最终设计目标
+## 50. 最终设计目标
 
 V4 应保证：
 
