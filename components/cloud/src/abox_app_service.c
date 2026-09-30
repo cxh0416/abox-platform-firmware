@@ -18,6 +18,17 @@ void ABoxAppService_Event(ABoxAppService *service, ABoxAppServiceEvent event)
     if (service && service->port && service->port->event)
         service->port->event(service->port->context, event);
 }
+static int recover(ABoxAppService *service, uint32_t now)
+{
+    const ABoxAppServicePort *p = service->port;
+    if (!p->recovery || !ABoxEc800Recovery_Poll(p->recovery, now,
+            p->transport_error(p->context), EC_Power_IsOnDone() &&
+            !ABoxBootV2App_IsBusy() && !p->maintenance_busy(p->context))) return 0;
+    ABoxAppService_Event(service, ABOX_APP_NETWORK_CHANGED);
+    EC_Power_StartRestartSequence();
+    if (p->restarted) p->restarted(p->context, now);
+    return 1;
+}
 void ABoxAppService_Poll(ABoxAppService *service, uint32_t now)
 {
     const ABoxAppServicePort *p;
@@ -48,17 +59,11 @@ void ABoxAppService_Poll(ABoxAppService *service, uint32_t now)
             goto done;
         }
         if (!p->transport_first && p->transport) p->transport(p->context, now);
-        if (p->recovery && ABoxEc800Recovery_Poll(p->recovery, now,
-                p->transport_error(p->context), EC_Power_IsOnDone() &&
-                !ABoxBootV2App_IsBusy() && !p->maintenance_busy(p->context))) {
-            ABoxAppService_Event(service, ABOX_APP_NETWORK_CHANGED);
-            EC_Power_StartRestartSequence();
-            if (p->restarted) p->restarted(p->context, now);
-            goto done;
-        }
+        if (!p->recovery_after_cloud && recover(service, now)) goto done;
         if (p->ready) p->ready(p->context,
             p->transport_ready ? p->transport_ready(p->context) : 1, now);
         p->cloud(p->context, now);
+        if (p->recovery_after_cloud) (void)recover(service, now);
     }
 done:
     service->polling = 0U;

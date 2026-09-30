@@ -31,6 +31,7 @@ typedef struct {
     ABoxEc800Recovery *recovery; /* Caller-owned, initialized before binding. */
     void (*restarted)(void *, uint32_t);
     uint8_t transport_first;
+    uint8_t recovery_after_cloud;
 } ABoxAppServicePort;
 typedef struct {
     ABoxEc800At *at;

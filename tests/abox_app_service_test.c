@@ -78,5 +78,9 @@ int main(void)
     used=0; port.before_cloud=hold;
     ABoxAppService_Poll(&service, 9U);
     assert(strcmp(trace, "PRGADOBEH") == 0); /* async stop holds all connection work */
+    used=0; port.before_cloud=0; port.transport_first=0;
+    port.recovery_after_cloud=1; blocked=1;
+    ABoxAppService_Poll(&service, 120005U);
+    assert(strcmp(trace, "PRGADOBEUTCNZ") == 0); /* process deferred requests before restart admission */
     return 0;
 }
