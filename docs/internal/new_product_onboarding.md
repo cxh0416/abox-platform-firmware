@@ -6,9 +6,15 @@
 
 Platform 的可选组件已由审查基线的 19 个扩展为 21 个，新增 `cloud_service` 与 `log_ring`。`ABoxCloudService` 已在送餐车承担启动、关联状态、响应及周期心跳调度；底盘与清扫车因冻结故障邮箱前的 RAM 边界，采用同组件内的紧凑 bootstrap/TX tracker，并保留产品 TX 队列。三车都已使用公共 MQTT trial executor、Enrollment 身份/服务适配、OTA AT adapter、标准 App CMake 接线、公共 MQTT Topic 构造和公共日志环；送餐车的私有 TLS runtime 已由公共 `ABoxMqttRuntime` 取代。
 
-公共 `ABoxCloudInternalV2Envelope` 现在校验既有内部 V2 请求结构并有界提取 requestId；底盘与清扫车已经迁入，产品继续校验参数、选择命令并编码原响应。底盘可选 product 字段的严格匹配与清扫车不检查该字段的旧行为分别保留。送餐车内部请求与双锁持久化幂等尚由产品处理，不能仅因字段相似改用此入口。Platform 37 项主机测试、三车产品测试及 ARM 构建通过，三车标准测试板均完成重新入网、独立请求、`sync_state` 与 Broker 踢线后的 Manifest → Heartbeat → 完整状态回归。三车公共日志环的 `get_log`/Cloud 回归亦有各产品内部证据；送餐车 1.1.36 的两次 ICCID 读数无效，1.1.37 延后后台 AT 请求后在独立查询与踢线后的重查中获得有效读数，踢线后的首次查询仍可能暂时无效。
+公共 `ABoxCloudInternalV2Envelope` 现在校验既有内部 V2 请求结构并有界提取 requestId；底盘与清扫车已经迁入，产品继续校验参数、选择命令并编码原响应。底盘可选 product 字段的严格匹配与清扫车不检查该字段的旧行为分别保留。送餐车内部请求与双锁持久化幂等尚由产品处理，不能仅因字段相似改用此入口。Platform 38 项主机测试、三车产品测试及 ARM 构建通过，三车标准测试板均完成重新入网、独立请求、`sync_state` 与 Broker 踢线后的 Manifest → Heartbeat → 完整状态回归。三车公共日志环的 `get_log`/Cloud 回归亦有各产品内部证据；送餐车 1.1.36 的两次 ICCID 读数无效，1.1.37 延后后台 AT 请求后在独立查询与踢线后的重查中获得有效读数，踢线后的首次查询仍可能暂时无效。
 
 仍需继续上收公共响应 payload/dispatch、维护事务与 ConfigStore 的完整协调、Enrollment/OTA 默认服务托管、单 owner service attach 和标准 App 发布全流程。现有发布器完成产物验证与整体替换，但三个候选均未替换正式 `dist/`。测试板证据不能代替真实车辆 CAN、执行器、双锁和机械反馈验收；Broker 踢线不能代替完整蜂窝断网或迟到 PUBACK 注入。
+
+## 验证复用规则
+
+公共组件的状态机、边界和故障注入由 Platform 主机测试验证一次；变更公共组件时，再运行受影响的公共测试和链接它的产品 ARM 构建。产品侧只对本次变动触及的接线、Profile/报文、Config codec、资源预算与安全策略做定向回归。标准测试板用于新硬件接线、首次集成以及主机无法覆盖的 EC800/网络行为；已有相同路径的实板记录可以引用，不为每次纯内部代码整理重复刷三车、重新 Enrollment 和踢线。扩大到另一产品前必须通过该产品差异的测试，不能把共享板的成功推断为实车 CAN、双锁或机械反馈成功。
+
+巡防底盘的服务端静止/新鲜轮速预检是通信切换的产品安全策略，不是公共 MQTT 组件的测试门槛；无车辆 CAN 的标准板仍可验证 MQTT 连接、重连和 Cloud 生命周期。该板不能给出受预检保护的底盘配置切换实板成功结论，除非另有经过审查的隔离测试入口；不得伪造轮速或放宽正式门禁。
 
 ## 已落地的公共接线
 
@@ -20,7 +26,7 @@ Platform 的可选组件已由审查基线的 19 个扩展为 21 个，新增 `c
 - 巡防底盘与清扫车已让 Cloud TX 依据精确 operation 推进响应、bootstrap 和各自的 candidate proof。送餐车也已把 Manifest、状态、响应、试连受理及心跳证明关联到 operation 和 requestId；旧发布计数接口暂留兼容。送餐车 1.1.34 已迁入公共 `ABoxMqttRuntime`。
 - `ABoxEc800Recovery` 对 AT 隔离后的模组电源轨重启做有界冷却判断，产品或 Cloud service 仍需声明 OTA、安全及维护事务是否允许重启。送餐车已接入此门禁，重启后刷新 Enrollment HTTP 和 OTA 网络准备；保持 AT 隔离直到物理 RDY，不能仅靠 MQTT 重连解除。
 - `ABoxMqttTrialExecutor` 将 trial 状态机的六种动作统一排入单个通信 owner 队列；超时或取消后的 RESTORE 抢占尚未执行的旧动作，取动作时校验 session。产品仍决定持久化 codec、证明报文、安全准入和实际 transport 操作。三产品均已接入公共 executor，并在标准测试板分别完成其既有证明类型的正向试连；送餐车又验证了不存在的候选 Broker 超时后恢复旧认证连接和重启持久化。TLS、认证及掉电等负向组合仍需继续验证。
-- `ABoxConfigStore_Commit` 是无 Flash 布局假设的配置提交门禁：产品回调负责候选和稳定快照的写入加回读，Platform 在候选失败时执行一次稳定快照恢复，并把已保存、已恢复和恢复失败分别返回。清扫车已迁入且保持原 Config V3 codec；同参数候选在标准板完成服务端事务、独立回读和 MCU 复位后重新上线。底盘源码也已迁入且保持 Config V5 codec/恢复页，主机测试与 ARM 构建通过，但标准板没有真实 CAN 轮速，服务端在安全预检阶段拒绝候选写入，故不能声称底盘实板提交成功。送餐车 Config V2 尚未迁入此接口，现有存储保证不因接口新增而改变。
+- `ABoxConfigStore_Commit` 是无 Flash 布局假设的配置提交门禁：产品回调负责候选和稳定快照的写入加回读，Platform 在候选失败时执行一次稳定快照恢复，并把已保存、已恢复和恢复失败分别返回。清扫车已迁入且保持原 Config V3 codec；同参数候选在标准板完成服务端事务、独立回读和 MCU 复位后重新上线。底盘源码也已迁入且保持 Config V5 codec/恢复页，主机测试与 ARM 构建通过，但标准板没有真实 CAN 轮速，服务端在安全预检阶段拒绝候选写入，故不能声称底盘实板提交成功。送餐车源码候选已接入同一提交门禁，保留 Config V2 的准备、写入和回读，主机注入覆盖保存、失败恢复及恢复失败，ARM Release 构建通过；尚未在标准板执行此候选的持久化事务，不能声称其实际掉电原子性已改变。
 - 新增可选 `abox::cloud_service` 的 `ABoxCloudService` 调度核心：单 owner、连接 generation 与发布 operation 关联，统一 Manifest → Heartbeat → 完整 State 启动顺序，以及响应、关联状态报告、事件和周期上报的有界排队。产品仍构造原有 MQTT V4 报文、提供实际 transport、维护证明和业务状态。送餐车已迁移启动三报文、`sync_state` 关联状态报告、周期心跳及普通响应的调度与 operation 回执；在标准测试板确认响应先于同 requestId 报告、约 5 秒心跳、Broker kick 和同参数试连后重连恢复。响应 payload 队列、其他命令 dispatch、OTA 与 Cloud 主循环仍由产品实现。送餐车原协议没有周期完整状态，因此公共选项设为零以关闭该调度。底盘与清扫车已接入紧凑启动游标和 TX 跟踪器，完整服务对象仍受 RAM 边界约束。
 - `ABoxCloudBootstrap` 是同一组件中的小型启动游标，提供相同的三报文顺序、连接 generation 和精确 operation 回执，不分配 request、response 或事件字符串。清扫车和巡防底盘的现有 TX scheduler 暂时继续管理其余报文，以满足固定故障邮箱前的 RAM 约束；迁移公共 Cloud 全功能时需替换产品重复状态，不能并存两份大型缓存。两个产品均在标准测试板重新入网，Broker 踢线后订阅采集到 Manifest → Heartbeat → 完整 State，并验证 `sync_state` 响应先于关联状态。
 - `ABoxBootV2Ec800Adapter_Bind()` 位于既有 `abox::boot_v2_app`，统一 OTA owner 的 AT 提交、RAW、URC、取消与接收溢出计数。产品继续提供 tick、MQTT 暂停/停止和工作区、日志、版本、artifact、Flash 布局及传输缓冲区；App OTA 状态机仍是原有 `ABoxBootV2App`。
