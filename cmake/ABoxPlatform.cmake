@@ -26,7 +26,7 @@ function(abox_platform_attach_components target)
         if(component STREQUAL "boot" OR component STREQUAL "ota")
             message(FATAL_ERROR "abox_platform_attach_components: legacy Boot/OTA must be attached explicitly")
         endif()
-        if(NOT component MATCHES "^(core|board_io|cjson|ec_power|ec800|ec800_ufs|ec800_command_port|ec800_tls|mqtt_tls|mqtt_runtime|mqtt_trial|mqtt_v4|mqtt_ec800_rx|mqtt_ec800|enrollment|enrollment_ec800_http|boot_v2_common|boot_v2_app|https_ufs_downloader|cloud_service|log_ring)$")
+        if(NOT component MATCHES "^(core|board_io|cjson|ec_power|ec800|ec800_ufs|ec800_command_port|ec800_tls|mqtt_tls|mqtt_runtime|mqtt_trial|mqtt_v4|mqtt_ec800_rx|mqtt_ec800|enrollment|enrollment_ec800_http|boot_v2_common|boot_v2_app|https_ufs_downloader|cloud_service|log_ring|maintenance_service|app_service)$")
             message(FATAL_ERROR "abox_platform_attach_components: unknown component '${component}'")
         endif()
         if(NOT TARGET abox::${component})
@@ -86,7 +86,7 @@ function(abox_platform_attach_standard_app target)
                    ec800_command_port ec800_tls mqtt_tls mqtt_runtime
                    mqtt_trial mqtt_v4 mqtt_ec800_rx mqtt_ec800
                    enrollment enrollment_ec800_http https_ufs_downloader
-                   boot_v2_common boot_v2_app cloud_service log_ring)
+                   boot_v2_common boot_v2_app cloud_service log_ring maintenance_service app_service)
     abox_platform_attach_standard_port(${target} HARDWARE stm32f105_ec800_v1)
     target_sources(${target} PRIVATE
         "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../targets/stm32f105_ec800_v1/enrollment_identity_stm32f105.c")

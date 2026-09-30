@@ -99,3 +99,15 @@ add_test(NAME abox_cloud_internal_v2_test COMMAND abox_cloud_internal_v2_test)
 add_executable(abox_log_ring_test abox_log_ring_test.c)
 target_link_libraries(abox_log_ring_test PRIVATE abox::log_ring)
 add_test(NAME abox_log_ring_test COMMAND abox_log_ring_test)
+
+add_executable(abox_cloud_response_test abox_cloud_response_test.c)
+target_link_libraries(abox_cloud_response_test PRIVATE abox::cloud_service)
+add_test(NAME abox_cloud_response_test COMMAND abox_cloud_response_test)
+add_executable(abox_maintenance_service_test abox_maintenance_service_test.c)
+target_link_libraries(abox_maintenance_service_test PRIVATE abox::maintenance_service)
+add_test(NAME abox_maintenance_service_test COMMAND abox_maintenance_service_test)
+add_executable(abox_app_service_test abox_app_service_test.c ../components/cloud/src/abox_app_service.c)
+target_include_directories(abox_app_service_test PRIVATE
+    ../components/cloud/include ../components/ec800/include ../components/boot_v2/include
+    ../components/ota/include ../components/core/include ../components/ec_power/include)
+add_test(NAME abox_app_service_test COMMAND abox_app_service_test)

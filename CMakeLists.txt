@@ -19,7 +19,7 @@ if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
             abox_mqtt_ec800_rx abox_mqtt_ec800 abox_mqtt_tls
             abox_mqtt_runtime abox_mqtt_trial abox_enrollment
             abox_enrollment_ec800_http abox_https_ufs_downloader
-            abox_boot_v2_common abox_boot_v2_app abox_boot_v2_boot abox_cloud_service abox_log_ring abox_ota)
+            abox_boot_v2_common abox_boot_v2_app abox_boot_v2_boot abox_cloud_service abox_log_ring abox_maintenance_service abox_app_service abox_ota)
         set_property(TARGET ${abox_target} PROPERTY EXCLUDE_FROM_ALL TRUE)
     endforeach()
 endif()
