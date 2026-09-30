@@ -207,17 +207,29 @@ int ABoxCloudService_QueueResponse(ABoxCloudService *service,
                    sizeof(service->response_request_id), request_id)) return 0;
     service->response_pending = 1U;
     service->response_sync = sync_state ? 1U : 0U;
-    if (sync_state && strcmp(service->pending_sync_request_id, request_id) == 0)
+    if (sync_state && service->pending_sync_request_id &&
+        strcmp(service->pending_sync_request_id, request_id) == 0)
         service->pending_sync_request_id[0] = '\0';
+    return 1;
+}
+
+int ABoxCloudService_SetSyncStorage(ABoxCloudService *service, char *storage,
+                                    unsigned capacity)
+{
+    if (!service || !storage || capacity < 65U || service->pending_sync_request_id)
+        return 0;
+    service->pending_sync_request_id = storage;
+    storage[0] = '\0';
     return 1;
 }
 
 int ABoxCloudService_QueueSyncRequest(ABoxCloudService *service, const char *request_id)
 {
-    if (!service || service->pending_sync_request_id[0] || !request_id || !request_id[0])
+    if (!service || !service->pending_sync_request_id ||
+        service->pending_sync_request_id[0] || !request_id || !request_id[0])
         return 0;
     return copy_text(service->pending_sync_request_id,
-                     sizeof(service->pending_sync_request_id), request_id);
+                     65U, request_id);
 }
 
 void ABoxCloudService_CancelResponse(ABoxCloudService *service)
@@ -282,7 +294,7 @@ int ABoxCloudService_Next(ABoxCloudService *service, uint32_t now,
         job->reason = service->correlated_reason[0] ?
             service->correlated_reason : "sync_state";
         job->request_id = service->sync_request_id;
-    } else if (service->pending_sync_request_id[0]) {
+    } else if (service->pending_sync_request_id && service->pending_sync_request_id[0]) {
         job->kind = ABOX_CLOUD_JOB_RESPONSE;
         job->request_id = service->pending_sync_request_id;
     } else if (service->event_pending) {

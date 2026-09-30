@@ -97,7 +97,7 @@ typedef struct {
     uint8_t sync_pending;
     uint8_t event_pending;
     char response_request_id[65];
-    char pending_sync_request_id[65];
+    char *pending_sync_request_id; /* Optional caller-owned 65-byte slot. */
     char sync_request_id[65];
     char correlated_reason[32];
     char event_reason[32];
@@ -114,6 +114,8 @@ int ABoxCloudService_QueueResponse(ABoxCloudService *service,
 /* Retain a sync request while a previous response or correlated report owns
  * its slot. Next returns RESPONSE with this ID once that slot becomes free. */
 int ABoxCloudService_QueueSyncRequest(ABoxCloudService *service, const char *request_id);
+int ABoxCloudService_SetSyncStorage(ABoxCloudService *service, char *storage,
+                                    unsigned capacity);
 /* Product jobs share the same operation/generation slot and run only when
  * the common scheduler has no work. */
 int ABoxCloudService_BeginExternal(ABoxCloudService *service,

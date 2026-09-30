@@ -225,6 +225,10 @@ int main(void)
     job = next(&service, 12U, ABOX_CLOUD_JOB_STATE);
     assert(strcmp(job.request_id, "sync-1") == 0);
     confirm(&service, &job, 105U, 12U);
+    char deferred_storage[65];
+    assert(!ABoxCloudService_QueueSyncRequest(&service, "unbound"));
+    assert(!ABoxCloudService_SetSyncStorage(&service, deferred_storage, 64U));
+    assert(ABoxCloudService_SetSyncStorage(&service, deferred_storage, sizeof(deferred_storage)));
     /* A sync received during another response survives without replacing it. */
     assert(ABoxCloudService_QueueResponse(&service, "info", 0));
     assert(ABoxCloudService_QueueSyncRequest(&service, "deferred"));
