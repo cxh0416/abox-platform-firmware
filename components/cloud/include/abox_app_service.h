@@ -2,6 +2,7 @@
 #define ABOX_APP_SERVICE_H
 #include "abox_ec800_at.h"
 #include "abox_ec800_rx.h"
+#include "abox_ec800_recovery.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -18,6 +19,18 @@ typedef struct {
     void (*enrollment)(void *, uint32_t);
     void (*cloud)(void *, uint32_t);
     void (*event)(void *, ABoxAppServiceEvent);
+    void (*before_cloud)(void *, uint32_t);
+    int (*can_connect)(void *);
+    void (*runtime)(void *, uint32_t);
+    int (*runtime_ready)(void *);
+    void (*transport)(void *, uint32_t);
+    int (*transport_ready)(void *);
+    void (*ready)(void *, int, uint32_t);
+    int (*transport_error)(void *);
+    int (*maintenance_busy)(void *);
+    ABoxEc800Recovery *recovery; /* Caller-owned, initialized before binding. */
+    void (*restarted)(void *, uint32_t);
+    uint8_t transport_first;
 } ABoxAppServicePort;
 typedef struct {
     ABoxEc800At *at;
