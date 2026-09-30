@@ -36,7 +36,7 @@ typedef struct {
     void *user;
     ABoxMqttTrialAction prepare, connect, subscribe, verify, commit, restore;
 } ABoxMqttTrialPort;
-typedef struct {
+typedef struct ABoxMqttTrial {
     ABoxMqttTrialPort port;
     const ABoxMqttConfig *active, *candidate;
     uint64_t session, serial, proof;
