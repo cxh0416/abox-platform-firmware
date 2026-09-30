@@ -111,3 +111,6 @@ target_include_directories(abox_app_service_test PRIVATE
     ../components/cloud/include ../components/ec800/include ../components/boot_v2/include
     ../components/ota/include ../components/core/include ../components/ec_power/include)
 add_test(NAME abox_app_service_test COMMAND abox_app_service_test)
+add_executable(abox_cloud_dispatch_queue_test abox_cloud_dispatch_queue_test.c)
+target_link_libraries(abox_cloud_dispatch_queue_test PRIVATE abox::cloud_service)
+add_test(NAME abox_cloud_dispatch_queue_test COMMAND abox_cloud_dispatch_queue_test)
