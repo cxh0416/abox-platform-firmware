@@ -2,6 +2,7 @@
 #define ABOX_CLOUD_SERVICE_H
 
 #include <stdint.h>
+#include "abox_mqtt_receipt.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -140,6 +141,25 @@ int ABoxCloudService_Begin(ABoxCloudService *service, const ABoxCloudJob *job,
 ABoxCloudJobKind ABoxCloudService_Receipt(ABoxCloudService *service,
                                           uint32_t generation, uint64_t operation,
                                           int confirmed, uint32_t now);
+
+/* Store this provider table in Flash. Payloads and records remain in caller
+ * storage; publish returns an exact transport operation. External work may
+ * return -1 to hold its priority while encoding or waiting for a resource. */
+typedef struct {
+    void *context;
+    int (*ready)(void *);
+    int (*publish_active)(void *);
+    ABoxMqttReceiptStatus (*receipt)(void *, uint64_t);
+    int (*publish)(void *, const ABoxCloudJob *, uint64_t *);
+    int (*external)(void *, uint64_t *);
+    void (*completed)(void *, ABoxCloudJobKind);
+    void (*failed)(void *);
+    uint8_t external_preempts_periodic;
+} ABoxCloudServicePort;
+typedef enum { ABOX_CLOUD_POLL_BLOCKED, ABOX_CLOUD_POLL_IDLE,
+               ABOX_CLOUD_POLL_SUBMITTED } ABoxCloudPollResult;
+ABoxCloudPollResult ABoxCloudService_Poll(ABoxCloudService *service,
+    const ABoxCloudServicePort *port, uint32_t now);
 
 #ifdef __cplusplus
 }

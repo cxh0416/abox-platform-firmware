@@ -405,3 +405,51 @@ ABoxCloudJobKind ABoxCloudService_Receipt(ABoxCloudService *service,
         service->status_due = now + service->options.status_period_ms;
     return kind;
 }
+
+ABoxCloudPollResult ABoxCloudService_Poll(ABoxCloudService *service,
+    const ABoxCloudServicePort *port, uint32_t now)
+{
+    ABoxCloudJob job;
+    uint64_t operation = 0U;
+    int has_job, external;
+    if (!service || !port || !port->ready || !port->publish_active ||
+        !port->receipt || !port->publish) return ABOX_CLOUD_POLL_BLOCKED;
+    if (service->in_flight) {
+        ABoxMqttReceiptStatus result = port->receipt(port->context, service->operation);
+        if (result == ABOX_MQTT_RECEIPT_CONFIRMED) {
+            ABoxCloudJobKind kind = ABoxCloudService_Receipt(service,
+                service->generation, service->operation, 1, now);
+            if (kind && port->completed) port->completed(port->context, kind);
+        } else if (result == ABOX_MQTT_RECEIPT_PENDING && port->publish_active(port->context))
+            return ABOX_CLOUD_POLL_BLOCKED;
+        else {
+            (void)ABoxCloudService_Receipt(service, service->generation,
+                                          service->operation, 0, now);
+            if (port->failed) port->failed(port->context);
+            return ABOX_CLOUD_POLL_BLOCKED;
+        }
+    }
+    if (!service->ready || !port->ready(port->context) || port->publish_active(port->context))
+        return ABOX_CLOUD_POLL_BLOCKED;
+    has_job = ABoxCloudService_Next(service, now, &job);
+    if (port->external && (!has_job ||
+        (port->external_preempts_periodic && !service->bootstrap_stage &&
+         (job.kind == ABOX_CLOUD_JOB_HEARTBEAT ||
+          (job.kind == ABOX_CLOUD_JOB_STATE && job.reason && !strcmp(job.reason, "periodic")))))) {
+        external = port->external(port->context, &operation);
+        if (external > 0) {
+            if (ABoxCloudService_BeginExternalPriority(service, operation, now,
+                                                       port->external_preempts_periodic))
+                return ABOX_CLOUD_POLL_SUBMITTED;
+            if (port->failed) port->failed(port->context);
+            return ABOX_CLOUD_POLL_BLOCKED;
+        }
+        if (external < 0) return ABOX_CLOUD_POLL_BLOCKED;
+    }
+    if (!has_job) return ABOX_CLOUD_POLL_IDLE;
+    operation = 0U;
+    if (!port->publish(port->context, &job, &operation)) return ABOX_CLOUD_POLL_BLOCKED;
+    if (ABoxCloudService_Begin(service, &job, operation, now)) return ABOX_CLOUD_POLL_SUBMITTED;
+    if (port->failed) port->failed(port->context);
+    return ABOX_CLOUD_POLL_BLOCKED;
+}

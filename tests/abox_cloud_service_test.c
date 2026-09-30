@@ -20,8 +20,55 @@ static void confirm(ABoxCloudService *service, ABoxCloudJob *job,
                                     1, now) == job->kind);
 }
 
+typedef struct {
+    uint64_t operation, queried;
+    ABoxMqttReceiptStatus receipt;
+    ABoxCloudJobKind published, completed;
+    int active, failures;
+} PollFixture;
+static int poll_ready(void *c) { (void)c; return 1; }
+static int poll_active(void *c) { return ((PollFixture *)c)->active; }
+static ABoxMqttReceiptStatus poll_receipt(void *c, uint64_t op) {
+    PollFixture *f = c; f->queried = op; return f->receipt;
+}
+static int poll_publish(void *c, const ABoxCloudJob *job, uint64_t *op) {
+    PollFixture *f = c; f->published = job->kind; *op = ++f->operation;
+    f->active = 1; return 1;
+}
+static void poll_completed(void *c, ABoxCloudJobKind kind) {
+    ((PollFixture *)c)->completed = kind;
+}
+static void poll_failed(void *c) { ++((PollFixture *)c)->failures; }
+static void test_poll(void) {
+    ABoxCloudService s;
+    ABoxCloudServiceOptions options = {1000U, 3000U, 1U};
+    PollFixture f = {0};
+    ABoxCloudServicePort port = {&f, poll_ready, poll_active, poll_receipt,
+        poll_publish, 0, poll_completed, poll_failed, 0};
+    assert(ABoxCloudService_Init(&s, &options, 0));
+    ABoxCloudService_SetReady(&s, 1, 0);
+    assert(ABoxCloudService_QueueResponse(&s, "sync", 1));
+    assert(ABoxCloudService_Poll(&s, &port, 0) == ABOX_CLOUD_POLL_SUBMITTED);
+    assert(f.published == ABOX_CLOUD_JOB_RESPONSE);
+    f.receipt = ABOX_MQTT_RECEIPT_PENDING;
+    assert(ABoxCloudService_Poll(&s, &port, 1) == ABOX_CLOUD_POLL_BLOCKED);
+    assert(f.queried == 1 && !s.sync_pending);
+    f.active = 0; f.receipt = ABOX_MQTT_RECEIPT_CONFIRMED;
+    assert(ABoxCloudService_Poll(&s, &port, 2) == ABOX_CLOUD_POLL_SUBMITTED);
+    assert(f.completed == ABOX_CLOUD_JOB_RESPONSE && s.sync_pending);
+    assert(f.published == ABOX_CLOUD_JOB_MANIFEST);
+    f.active = 0; f.receipt = ABOX_MQTT_RECEIPT_PENDING;
+    assert(ABoxCloudService_Poll(&s, &port, 3) == ABOX_CLOUD_POLL_BLOCKED);
+    assert(f.failures == 1 && !s.in_flight && s.bootstrap_stage == 1);
+    uint32_t generation = s.generation;
+    ABoxCloudService_NetworkChanged(&s);
+    assert(ABoxCloudService_Receipt(&s, generation, 2, 1, 4) == ABOX_CLOUD_JOB_NONE);
+    assert(ABoxCloudService_Poll(&s, 0, 4) == ABOX_CLOUD_POLL_BLOCKED);
+}
+
 int main(void)
 {
+    test_poll();
     ABoxCloudBootstrap compact;
     ABoxCloudTxTracker tracker;
     ABoxCloudService service;
