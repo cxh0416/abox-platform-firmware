@@ -202,12 +202,22 @@ int ABoxCloudService_QueueResponse(ABoxCloudService *service,
 {
     if (!service || service->response_pending ||
         (sync_state && service->sync_pending) ||
-        !request_id || !request_id[0] ||
+        !request_id || (sync_state && !request_id[0]) ||
         !copy_text(service->response_request_id,
                    sizeof(service->response_request_id), request_id)) return 0;
     service->response_pending = 1U;
     service->response_sync = sync_state ? 1U : 0U;
+    if (sync_state && strcmp(service->pending_sync_request_id, request_id) == 0)
+        service->pending_sync_request_id[0] = '\0';
     return 1;
+}
+
+int ABoxCloudService_QueueSyncRequest(ABoxCloudService *service, const char *request_id)
+{
+    if (!service || service->pending_sync_request_id[0] || !request_id || !request_id[0])
+        return 0;
+    return copy_text(service->pending_sync_request_id,
+                     sizeof(service->pending_sync_request_id), request_id);
 }
 
 void ABoxCloudService_CancelResponse(ABoxCloudService *service)
@@ -272,6 +282,9 @@ int ABoxCloudService_Next(ABoxCloudService *service, uint32_t now,
         job->reason = service->correlated_reason[0] ?
             service->correlated_reason : "sync_state";
         job->request_id = service->sync_request_id;
+    } else if (service->pending_sync_request_id[0]) {
+        job->kind = ABOX_CLOUD_JOB_RESPONSE;
+        job->request_id = service->pending_sync_request_id;
     } else if (service->event_pending) {
         job->kind = ABOX_CLOUD_JOB_STATE;
         job->reason = service->event_reason;
@@ -285,11 +298,23 @@ int ABoxCloudService_Next(ABoxCloudService *service, uint32_t now,
     return 1;
 }
 
+int ABoxCloudService_BeginExternal(ABoxCloudService *service,
+                                   uint64_t operation, uint32_t now)
+{
+    ABoxCloudJob job;
+    if (!service || !operation || !service->ready || service->in_flight ||
+        ABoxCloudService_Next(service, now, &job)) return 0;
+    service->in_flight = ABOX_CLOUD_JOB_EXTERNAL;
+    service->operation = operation;
+    return 1;
+}
+
 int ABoxCloudService_Begin(ABoxCloudService *service, const ABoxCloudJob *job,
                            uint64_t operation, uint32_t now)
 {
     ABoxCloudJob expected;
     if (!service || !job || !operation || service->in_flight != ABOX_CLOUD_JOB_NONE ||
+        (job->kind == ABOX_CLOUD_JOB_RESPONSE && !service->response_pending) ||
         !ABoxCloudService_Next(service, now, &expected) ||
         job->kind != expected.kind || job->generation != expected.generation ||
         ((job->request_id || expected.request_id) &&

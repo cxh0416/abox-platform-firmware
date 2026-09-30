@@ -14,7 +14,8 @@ typedef enum {
     ABOX_CLOUD_JOB_MANIFEST,
     ABOX_CLOUD_JOB_HEARTBEAT,
     ABOX_CLOUD_JOB_STATE,
-    ABOX_CLOUD_JOB_RESPONSE
+    ABOX_CLOUD_JOB_RESPONSE,
+    ABOX_CLOUD_JOB_EXTERNAL /* Product log/alert work below all Cloud jobs. */
 } ABoxCloudJobKind;
 
 typedef struct {
@@ -96,6 +97,7 @@ typedef struct {
     uint8_t sync_pending;
     uint8_t event_pending;
     char response_request_id[65];
+    char pending_sync_request_id[65];
     char sync_request_id[65];
     char correlated_reason[32];
     char event_reason[32];
@@ -109,6 +111,13 @@ int ABoxCloudService_Bootstrapping(const ABoxCloudService *service);
 /* The caller retains its response topic/payload until RESPONSE confirmation. */
 int ABoxCloudService_QueueResponse(ABoxCloudService *service,
                                    const char *request_id, int sync_state);
+/* Retain a sync request while a previous response or correlated report owns
+ * its slot. Next returns RESPONSE with this ID once that slot becomes free. */
+int ABoxCloudService_QueueSyncRequest(ABoxCloudService *service, const char *request_id);
+/* Product jobs share the same operation/generation slot and run only when
+ * the common scheduler has no work. */
+int ABoxCloudService_BeginExternal(ABoxCloudService *service,
+                                   uint64_t operation, uint32_t now);
 /* Dropping an expired product response also invalidates its old operation.
  * A late confirmation cannot finish a later response. */
 void ABoxCloudService_CancelResponse(ABoxCloudService *service);

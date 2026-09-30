@@ -225,5 +225,29 @@ int main(void)
     job = next(&service, 12U, ABOX_CLOUD_JOB_STATE);
     assert(strcmp(job.request_id, "sync-1") == 0);
     confirm(&service, &job, 105U, 12U);
+    /* A sync received during another response survives without replacing it. */
+    assert(ABoxCloudService_QueueResponse(&service, "info", 0));
+    assert(ABoxCloudService_QueueSyncRequest(&service, "deferred"));
+    assert(!ABoxCloudService_QueueSyncRequest(&service, "second"));
+    job = next(&service, 13U, ABOX_CLOUD_JOB_RESPONSE);
+    assert(strcmp(job.request_id, "info") == 0);
+    confirm(&service, &job, 106U, 13U);
+    job = next(&service, 14U, ABOX_CLOUD_JOB_RESPONSE);
+    assert(strcmp(job.request_id, "deferred") == 0);
+    assert(!ABoxCloudService_Begin(&service, &job, 107U, 14U));
+    assert(ABoxCloudService_QueueResponse(&service, job.request_id, 1));
+    assert(!service.pending_sync_request_id[0]);
+    job = next(&service, 14U, ABOX_CLOUD_JOB_RESPONSE);
+    confirm(&service, &job, 107U, 14U);
+    job = next(&service, 15U, ABOX_CLOUD_JOB_STATE);
+    assert(strcmp(job.request_id, "deferred") == 0);
+    confirm(&service, &job, 108U, 15U);
+    assert(ABoxCloudService_BeginExternal(&service, 109U, 16U));
+    assert(!ABoxCloudService_BeginExternal(&service, 110U, 16U));
+    assert(ABoxCloudService_Receipt(&service, service.generation, 110U, 1, 17U)
+           == ABOX_CLOUD_JOB_NONE);
+    assert(ABoxCloudService_Receipt(&service, service.generation, 109U, 1, 17U)
+           == ABOX_CLOUD_JOB_EXTERNAL);
+    assert(!ABoxCloudService_BeginExternal(&service, 111U, 2000U));
     return 0;
 }
