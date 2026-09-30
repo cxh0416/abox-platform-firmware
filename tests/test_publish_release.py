@@ -6,6 +6,8 @@ import json
 import os
 from pathlib import Path
 import struct
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -24,6 +26,33 @@ def artifact(name: str, data: bytes, address: str) -> dict:
 
 
 class ReleaseTest(unittest.TestCase):
+    def test_standard_bundle_primitives(self) -> None:
+        shell = shutil.which("pwsh")
+        if not shell:
+            self.skipTest("PowerShell 7 is required for release tooling")
+        contract = self.root / "contract.json"
+        contract.write_text(json.dumps(self.contract), encoding="utf-8")
+        produced = self.root / "produced"
+        script = self.root / "produce.ps1"
+        helper = Path(__file__).resolve().parents[1] / "tools/standard_release.ps1"
+        script.write_text(
+            "param($Helper, $App, $Boot, $Stage, $Contract)\n"
+            "$ErrorActionPreference = 'Stop'\n. $Helper\n"
+            "$images = New-ABoxReleaseImages -AppPath $App -BootPath $Boot "
+            "-Stage $Stage -ContractPath $Contract -Version 'product-1.0'\n"
+            "Get-ABoxReleaseArtifact -Path $images.full -LoadAddress '0x08000000' "
+            "| ConvertTo-Json -Compress\n", encoding="utf-8")
+        result = subprocess.run([shell, "-NoProfile", "-File", str(script),
+            str(helper), str(self.stage / "App.bin"), str(self.stage / "Boot.bin"),
+            str(produced), str(contract)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        full = bytes(self.boot + self.app)
+        self.assertEqual((produced / "Full.bin").read_bytes(), full)
+        record = json.loads(result.stdout)
+        self.assertEqual(record["length"], len(full))
+        self.assertEqual(record["crc32"].lower(), f"{zlib.crc32(full):08x}")
+        self.assertEqual(record["sha256"].lower(), hashlib.sha256(full).hexdigest())
+
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
