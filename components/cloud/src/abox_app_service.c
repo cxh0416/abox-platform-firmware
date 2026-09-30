@@ -39,7 +39,7 @@ void ABoxAppService_Poll(ABoxAppService *service, uint32_t now)
         ABoxBootV2App_Task();
         if (p->before_enrollment) p->before_enrollment(p->context, now);
         if (p->enrollment) p->enrollment(p->context, now);
-        if (p->before_cloud) p->before_cloud(p->context, now);
+        if (p->before_cloud && !p->before_cloud(p->context, now)) goto done;
         if (p->can_connect && !p->can_connect(p->context)) goto done;
         if (p->transport_first && p->transport) p->transport(p->context, now);
         if (p->runtime) p->runtime(p->context, now);

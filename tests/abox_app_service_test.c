@@ -28,6 +28,7 @@ static void before(void *context, uint32_t now) { (void)context; (void)now; reco
 static void enrollment(void *context, uint32_t now) { (void)context; (void)now; record('E'); }
 static void cloud(void *context, uint32_t now)
 { (void)context; record('C'); ABoxAppService_Poll(&service, now); }
+static int hold(void *context, uint32_t now) { (void)context; (void)now; record('H'); return 0; }
 static void runtime(void *context, uint32_t now) { (void)context; (void)now; record('U'); }
 static void transport(void *context, uint32_t now) { (void)context; (void)now; record('T'); }
 static int is_runtime_ready(void *context) { (void)context; return runtime_ready; }
@@ -74,5 +75,8 @@ int main(void)
     used=0; runtime_ready=1; port.transport_first=1;
     ABoxAppService_Poll(&service, 8U);
     assert(strcmp(trace, "PRGADOBETUC") == 0); /* baremetal compatibility order */
+    used=0; port.before_cloud=hold;
+    ABoxAppService_Poll(&service, 9U);
+    assert(strcmp(trace, "PRGADOBEH") == 0); /* async stop holds all connection work */
     return 0;
 }

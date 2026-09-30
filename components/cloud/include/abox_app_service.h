@@ -19,7 +19,7 @@ typedef struct {
     void (*enrollment)(void *, uint32_t);
     void (*cloud)(void *, uint32_t);
     void (*event)(void *, ABoxAppServiceEvent);
-    void (*before_cloud)(void *, uint32_t);
+    int (*before_cloud)(void *, uint32_t); /* Zero holds transport during maintenance. */
     int (*can_connect)(void *);
     void (*runtime)(void *, uint32_t);
     int (*runtime_ready)(void *);
