@@ -6,10 +6,15 @@ function Invoke-ABoxAppBuild {
           [string[]] $Definitions = @())
     $source = Join-Path $ProductRoot 'app'
     $toolchain = Join-Path $source 'cmake/gcc-arm-none-eabi.cmake'
-    & cmake -S $source -B $BuildDirectory -G Ninja "-DCMAKE_TOOLCHAIN_FILE=$toolchain" "-DCMAKE_BUILD_TYPE=$Configuration" @Definitions | Out-Host
+    & cmake -S $source -B $BuildDirectory -G Ninja "-DCMAKE_TOOLCHAIN_FILE=$toolchain" "-DCMAKE_BUILD_TYPE=$Configuration" "-DCMAKE_C_FLAGS=-fstack-usage" @Definitions | Out-Host
     if ($LASTEXITCODE -ne 0) { throw 'App configure failed' }
     & cmake --build $BuildDirectory --target $Target --parallel 4 | Out-Host
     if ($LASTEXITCODE -ne 0) { throw 'App build failed' }
+    $budget = Join-Path $ProductRoot 'tools/service_stack_budget.json'
+    if (Test-Path -LiteralPath $budget) {
+        & python (Join-Path $PSScriptRoot 'verify_service_stack.py') --build $BuildDirectory --budget $budget | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw 'App service stack budget failed' }
+    }
     $bin = Join-Path $BuildDirectory "$Target.bin"
     $elf = Join-Path $BuildDirectory "$Target.elf"
     if (!(Test-Path -LiteralPath $bin -PathType Leaf) -or !(Test-Path -LiteralPath $elf -PathType Leaf)) {
