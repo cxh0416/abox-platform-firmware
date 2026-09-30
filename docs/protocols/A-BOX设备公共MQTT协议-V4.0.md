@@ -492,16 +492,17 @@ A-BOX 必须拒绝执行，并返回：
 2. 动作一旦被接受后允许持续多久，由业务 Profile 的超时、租约或安全状态机决定。
 3. 每个要求 `expiresAt` 的可执行操作必须定义 `maxValidity`。
    `DISCRETE_ACTION` 的 `maxValidity` 不得超过 30 秒，Profile 只能定义更短值。
-4. A-BOX 接收请求时必须满足：
+4. 请求申请的原始有效期必须满足：
 
 ```text
-0 < expiresAt - currentTime <= maxValidity
+0 < expiresAt - request.timestamp <= maxValidity
 ```
 
-5. `expiresAt - currentTime <= 0` 时返回 `4005 REQUEST_EXPIRED`。
-6. `expiresAt - currentTime > maxValidity` 时视为非法请求，返回 `4001 INVALID_REQUEST`。
-7. 依赖 `expiresAt` 的设备必须具备可信时间源。
-8. 设备无法确认当前时间有效时，不得静默忽略 `expiresAt`；必须按 Profile 规则拒绝时间敏感动作或进入安全降级状态。
+5. 原始有效期不满足上述条件时返回 `4001 INVALID_REQUEST`，既有 Profile 明确规定的响应码例外保持有效。必须先比较大小再相减，避免无符号整数下溢。
+6. 设备可信当前 UTC 满足 `currentTime >= expiresAt` 时，新请求返回 `4005 REQUEST_EXPIRED`。不得使用 `expiresAt - currentTime` 判断原始最大有效期。
+7. `timestamp` 用于消息生成时间、审计、排序和原始有效期计算，不作为严格的设备与平台时钟一致性门禁。重试应保留原始 `timestamp` 和 `expiresAt`。
+8. 依赖 `expiresAt` 的新请求必须使用可信时间。时间未同步、过久未校时，或估计误差导致无法确认尚未到期时，返回 `4003`，不得静默忽略有效期。
+9. 合法重复请求先按请求身份检查冲突并返回已保存结果；已接受请求的重复投递不得因当前时间已过期或当前授时不可用而重新执行或改变已保存结果。
 
 ---
 
@@ -742,7 +743,7 @@ open_locker
 | `400` | `BUSINESS_FAILED` | Profile 明确定义的业务执行失败 |
 | `4001` | `INVALID_REQUEST` | JSON 结构、必填字段、参数、枚举等非法 |
 | `4002` | `UNSUPPORTED_COMMAND` | 不支持该 `command` 或可执行操作 |
-| `4003` | `BUSY` | 当前业务繁忙或存在互斥操作 |
+| `4003` | `BUSY` | 当前业务繁忙、存在互斥操作或时间敏感请求的可信时间不可用 |
 | `4004` | `RESERVED` | V4 公共协议保留 |
 | `4005` | `REQUEST_EXPIRED` | 请求已过期 |
 | `4006` | `REQUEST_ID_CONFLICT` | 相同 requestId 对应不同逻辑请求内容 |

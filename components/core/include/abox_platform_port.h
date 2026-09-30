@@ -8,6 +8,7 @@ extern "C" {
 #endif
 
 typedef uint32_t (*ABox_GetTickMsFn)(void *context);
+typedef uint64_t (*ABox_GetMonotonicMsFn)(void *context);
 typedef int (*ABox_UartWriteFn)(void *context, const uint8_t *data, uint32_t length);
 typedef int (*ABox_FlashBeginFn)(void *context);
 typedef int (*ABox_FlashWriteFn)(void *context, uint32_t address, const uint8_t *data, uint32_t length);
@@ -41,6 +42,7 @@ typedef struct {
     ABox_GpioWriteFn ec_power_enable_write;
     ABox_GpioWriteFn ec_pwrkey_write;
     ABox_FlashReadFn flash_read;
+    ABox_GetMonotonicMsFn get_monotonic_ms;
 } ABoxPlatformPort;
 
 /* The port is deliberately scheduler-neutral; FreeRTOS and bare-metal adapt it. */
@@ -50,6 +52,7 @@ const ABoxPlatformPort *ABox_PlatformPortGet(void);
 const ABoxFlashLayout *ABox_PlatformFlashLayoutGet(void);
 
 uint32_t ABox_PortGetTickMs(void);
+uint64_t ABox_PortGetMonotonicMs(void);
 int ABox_PortUartWrite(const uint8_t *data, uint32_t length);
 int ABox_PortFlashBegin(void);
 int ABox_PortFlashWrite(uint32_t address, const uint8_t *data, uint32_t length);

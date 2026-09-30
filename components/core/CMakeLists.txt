@@ -1,5 +1,5 @@
 add_library(abox_core STATIC src/abox_platform_config.c src/abox_platform_port.c
-    src/abox_config_store.c)
+    src/abox_config_store.c src/abox_clock.c src/abox_time_sync.c)
 add_library(abox::core ALIAS abox_core)
 target_include_directories(abox_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_definitions(abox_core PUBLIC

@@ -29,6 +29,12 @@ uint32_t ABox_PortGetTickMs(void)
     return (g_port_bound && g_port.get_tick_ms) ? g_port.get_tick_ms(g_port.context) : 0U;
 }
 
+uint64_t ABox_PortGetMonotonicMs(void)
+{
+    return (g_port_bound && g_port.get_monotonic_ms) ?
+        g_port.get_monotonic_ms(g_port.context) : 0U;
+}
+
 int ABox_PortUartWrite(const uint8_t *data, uint32_t length)
 {
     return (g_port_bound && g_port.uart_write) ? g_port.uart_write(g_port.context, data, length) : 0;

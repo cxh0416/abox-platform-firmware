@@ -72,6 +72,12 @@ endfunction()
 # Standard board link set for a new App. This does not create the product's
 # startup, control/safety task or protocol handlers; it keeps one explicit
 # scheduler and hardware contract while reusing the common communication stack.
+function(abox_platform_attach_standard_clock target)
+    target_sources(${target} PRIVATE
+        "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../targets/stm32f105_ec800_v1/monotonic_stm32f105.c")
+    target_compile_definitions(${target} PRIVATE ABOX_STM32_MONOTONIC=1)
+endfunction()
+
 function(abox_platform_attach_standard_app target)
     cmake_parse_arguments(ABOX_APP "" "PRODUCT_CONFIG_DIR;SCHEDULER" "" ${ARGN})
     if(ABOX_APP_UNPARSED_ARGUMENTS OR ABOX_APP_KEYWORDS_MISSING_VALUES OR

@@ -104,6 +104,20 @@ int main(void)
     assert(!runtime.waiting && ABoxMqttRuntime_IsReady(&runtime));
     runtime.callbacks.time_valid = yes;
 
+    runtime.options.query_clock_mode = 1U;
+    runtime.callbacks.time_valid = clock_invalid;
+    ABoxMqttRuntime_Poll(&runtime, 4003U);
+    ABoxEc800At_Task(&at);
+    assert(strstr(f.last_command, "AT+CTZU?") != 0);
+    ABoxEc800At_Feed(&at, (const uint8_t *)"\r\nOK\r\n", 6U);
+    ABoxMqttRuntime_Poll(&runtime, 4004U);
+    ABoxEc800At_Task(&at);
+    assert(strstr(f.last_command, "AT+CCLK?") != 0);
+    ABoxEc800At_Feed(&at, (const uint8_t *)"\r\nOK\r\n", 6U);
+    ABoxMqttRuntime_Poll(&runtime, 4005U);
+    assert(!runtime.waiting);
+    runtime.callbacks.time_valid = yes;
+
 
     assert(ABoxMqttRuntime_Stage(&runtime, &next));
     assert(ABoxMqttRuntime_Activate(&runtime, 4U));

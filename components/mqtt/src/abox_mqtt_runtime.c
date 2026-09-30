@@ -368,13 +368,20 @@ void ABoxMqttRuntime_Poll(ABoxMqttRuntime *r, uint32_t now) {
     if (r->waiting) {
       s = r->command.poll(r->command.context, r->operation);
       if (s == ABOX_ASYNC_PENDING) return;
+      if (r->waiting == 2U && s == ABOX_ASYNC_OK) {
+        r->waiting = (uint8_t)r->command.submit(r->command.context, "AT+CCLK?",
+                              r->options.command_timeout_ms, &r->operation);
+        return;
+      }
       r->waiting = 0;
       r->started = now;
     }
     if (!r->callbacks.time_valid(r->callbacks.user) &&
         (uint32_t)(now - r->started) >= 2000U) {
-      r->waiting = (uint8_t)r->command.submit(r->command.context, "AT+CCLK?",
+      r->waiting = (uint8_t)r->command.submit(r->command.context,
+                              r->options.query_clock_mode ? "AT+CTZU?" : "AT+CCLK?",
                               r->options.command_timeout_ms, &r->operation);
+      if (r->waiting && r->options.query_clock_mode) r->waiting = 2U;
       r->started = now;
     }
     return;
@@ -439,9 +446,20 @@ void ABoxMqttRuntime_Poll(ABoxMqttRuntime *r, uint32_t now) {
       state(r, ABOX_MQTT_RUNTIME_PROBE_TLS, "tls-capability");
       return;
     }
-    if (!r->command.submit(r->command.context, "AT+CCLK?",
+    if (!r->command.submit(r->command.context,
+                           r->options.query_clock_mode ? "AT+CTZU?" : "AT+CCLK?",
                            r->options.command_timeout_ms, &r->operation))
       return;
+    state(r, r->options.query_clock_mode ? ABOX_MQTT_RUNTIME_CLOCK_MODE :
+              ABOX_MQTT_RUNTIME_CLOCK, "clock");
+    return;
+  }
+  if (r->state == ABOX_MQTT_RUNTIME_CLOCK_MODE) {
+    s = r->command.poll(r->command.context, r->operation);
+    if (s == ABOX_ASYNC_PENDING) return;
+    if (s != ABOX_ASYNC_OK) { fail(r, "clock-mode"); return; }
+    if (!r->command.submit(r->command.context, "AT+CCLK?",
+                           r->options.command_timeout_ms, &r->operation)) return;
     state(r, ABOX_MQTT_RUNTIME_CLOCK, "clock");
     return;
   }

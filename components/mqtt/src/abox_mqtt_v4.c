@@ -2,6 +2,34 @@
 
 #include <string.h>
 
+int ABoxMqttV4_FormatInteger(char *output, size_t capacity, uint64_t value)
+{
+    char reversed[20];
+    size_t digits = 0, i;
+    if (!output || !capacity) return 0;
+    output[0] = '\0';
+    do { reversed[digits++] = (char)('0' + value % 10U); value /= 10U; } while (value);
+    if (digits >= capacity) return 0;
+    for (i = 0; i < digits; ++i) output[i] = reversed[digits - i - 1U];
+    output[digits] = '\0';
+    return 1;
+}
+
+int ABoxMqttV4_RequestLifetimeValid(uint64_t timestamp, uint64_t expires,
+                                     uint32_t maximum)
+{
+    return timestamp <= 9007199254740991ULL && expires <= 9007199254740991ULL &&
+        expires > timestamp && (!maximum || expires - timestamp <= maximum);
+}
+
+uint16_t ABoxMqttV4_CheckExpiry(const ABoxClockSnapshot *clock, uint64_t expires)
+{
+    if (!clock || clock->quality != ABOX_CLOCK_SYNCHRONIZED) return 4003U;
+    if (clock->utc_ms >= expires) return 4005U;
+    if (expires - clock->utc_ms <= clock->error_ms) return 4003U;
+    return 200U;
+}
+
 int ABoxMqttV4_BuildTopic(char *output, size_t capacity, const char *device_id,
                           ABoxMqttV4Topic topic)
 {

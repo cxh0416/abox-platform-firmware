@@ -38,7 +38,8 @@ typedef enum {
   ABOX_MQTT_RUNTIME_STOP_UNBIND,
   ABOX_MQTT_RUNTIME_UNENROLLED,
   ABOX_MQTT_RUNTIME_BLOCKED,
-  ABOX_MQTT_RUNTIME_PROBE_TLS
+  ABOX_MQTT_RUNTIME_PROBE_TLS,
+  ABOX_MQTT_RUNTIME_CLOCK_MODE
 } ABoxMqttRuntimeState;
 typedef struct {
   void *user;
@@ -85,6 +86,7 @@ typedef struct {
   /* Opt in when modem TLS context capability must be observed at runtime.
    * The configured mask then limits acceptable observed contexts. */
   uint8_t probe_tls_capability;
+  uint8_t query_clock_mode;
 } ABoxMqttRuntimeOptions;
 /* Standard STM32F105/EC800 wiring; callers still supply product lifecycle
  * callbacks and may override timeouts for a bench fault-injection build. */

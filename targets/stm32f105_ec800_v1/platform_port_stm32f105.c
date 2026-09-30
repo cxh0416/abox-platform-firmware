@@ -7,6 +7,11 @@
 #include "gpio.h"
 #include "main.h"
 #include "usart.h"
+#ifdef ABOX_STM32_MONOTONIC
+#include "abox_stm32_monotonic.h"
+static uint64_t get_monotonic(void *context)
+{ (void)context; return ABoxStm32Monotonic_GetMs(); }
+#endif
 
 static const ABoxFlashLayout g_flash_layout = {
     APP_START_ADDR, OTA_INFO_ADDR, OTA_FLASH_PAGE_SIZE
@@ -73,10 +78,18 @@ void ABoxStm32F105Ec800Port_Init(void)
         0, get_tick, uart_write, flash_begin, flash_write,
         flash_erase_page, flash_end, enter_critical, exit_critical,
         log_write, ota_is_reading_raw, &g_flash_layout,
-        ec_power_write, ec_pwrkey_write
+        ec_power_write, ec_pwrkey_write, 0,
+#ifdef ABOX_STM32_MONOTONIC
+        get_monotonic
+#else
+        0
+#endif
     };
     static const ABoxEcPowerConfig power = {6000U, 2000U, 3000U, 0U, 1U};
 
+#ifdef ABOX_STM32_MONOTONIC
+    ABoxStm32Monotonic_Init();
+#endif
     (void)ABox_PlatformPortBind(&port);
     (void)ABox_EcPower_SetConfig(&power);
 }

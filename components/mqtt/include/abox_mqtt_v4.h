@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "abox_clock.h"
 
 #define ABOX_MQTT_V4_VERSION "4.0"
 #define ABOX_MQTT_V4_IDEMPOTENCY_GRACE_MS 600000ULL
@@ -68,5 +69,12 @@ const ABoxMqttReportDescriptor *ABoxMqttV4_FindReport(
 uint8_t ABoxMqttV4_SubscriptionQos(const char *topic);
 uint8_t ABoxMqttV4_ReportQos(const char *report_type);
 uint64_t ABoxMqttV4_IdempotencyProtectUntil(uint64_t expires_at);
+/* Decimal raw JSON/canonical text, independent of nano printf/double support. */
+int ABoxMqttV4_FormatInteger(char *output, size_t capacity, uint64_t value);
+/* max_validity=0 means no Profile duration cap. No device clock is consulted. */
+int ABoxMqttV4_RequestLifetimeValid(uint64_t timestamp, uint64_t expires_at,
+                                     uint32_t max_validity_ms);
+/* Only new requests need this check. Matching completed requests replay first. */
+uint16_t ABoxMqttV4_CheckExpiry(const ABoxClockSnapshot *clock, uint64_t expires_at);
 
 #endif
