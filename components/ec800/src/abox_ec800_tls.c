@@ -48,7 +48,8 @@ int ABoxEc800Tls_Prepare(ABoxEc800Tls *t, ABoxTlsLease l,
           !ABoxEc800Ufs_PathValid(p->ca_file))) || !timeout || timeout > INT32_MAX ||
         s->status != ABOX_ASYNC_IDLE || s->pins) return 0;
     s->auth_mode = p->credentials.mode;
-    if (s->auth_mode == ABOX_TLS_AUTH_PSK) s->credentials = p->credentials;
+    if (s->auth_mode == ABOX_TLS_AUTH_PSK) memcpy(s->psk.identity, p->credentials.identity, sizeof(s->psk.identity));
+        memcpy(s->psk.secret, p->credentials.secret, sizeof(s->psk.secret));
     if (p->credentials.mode == ABOX_TLS_AUTH_CA) {
         strcpy(s->ca_file, p->ca_file); s->revision = p->ca_revision;
     }
@@ -77,7 +78,7 @@ void ABoxEc800Tls_Poll(ABoxEc800Tls *t, uint32_t now)
             s->waiting = 0;
             if (++s->step == (s->auth_mode == ABOX_TLS_AUTH_PSK ? 5 : 10)) {
                 if (s->auth_mode == ABOX_TLS_AUTH_PSK)
-                    memset(s->credentials.secret, 0, sizeof(s->credentials.secret));
+                    memset(s->psk.secret, 0, sizeof(s->psk.secret));
                 s->status = ABOX_ASYNC_OK; continue;
             }
         }
@@ -87,8 +88,8 @@ void ABoxEc800Tls_Poll(ABoxEc800Tls *t, uint32_t now)
             case 1: snprintf(command, sizeof(command), "AT+QSSLCFG=\"ciphersuite\",%u,0xCCAC", id); break;
             case 2: snprintf(command, sizeof(command), "AT+QSSLCFG=\"seclevel\",%u,0", id); break;
             case 3: snprintf(command, sizeof(command), "AT+QSSLCFG=\"session_cache\",%u,0", id); break;
-            default: snprintf(command, sizeof(command), "AT+QSSLCFG=\"psk\",%u,\"%s\",\"%s\"", id,
-                              s->credentials.identity, s->credentials.secret); break;
+            default: snprintf(command, sizeof(command), "AT+QSSLCFG=\"psk\",%u,\"%s\",\"%.32s\"", id,
+                              s->psk.identity, s->psk.secret); break;
             }
         } else {
         switch (s->step) {

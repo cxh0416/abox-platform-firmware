@@ -112,7 +112,7 @@ int main(void)
     CHECK(!strcmp(m.commands[2], "AT+QSSLCFG=\"seclevel\",2,0"));
     CHECK(!strcmp(m.commands[3], "AT+QSSLCFG=\"session_cache\",2,0"));
     CHECK(strstr(m.commands[4], profile.credentials.secret));
-    CHECK(!t.slots[2].credentials.secret[0]);
+    CHECK(!t.slots[2].psk.secret[0]);
     CHECK(ABoxEc800Tls_Release(&t, l));
     CHECK(ABoxEc800Tls_Acquire(&t, 2, 16, &l));
     profile.credentials.secret[31] = 0;

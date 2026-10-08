@@ -33,13 +33,14 @@ typedef struct {
     uint64_t generation, operation;
     uint32_t owner, revision, started, timeout;
     uint16_t pins;
-    uint8_t step, waiting;
+    uint8_t step : 7;
+    uint8_t auth_mode : 1;
+    uint8_t waiting;
     /* Only one authentication mode is prepared per lease. */
     union {
         char ca_file[ABOX_EC800_UFS_PATH_SIZE];
-        ABoxTlsCredentials credentials;
+        struct { char identity[32], secret[32]; } psk;
     };
-    uint8_t auth_mode;
     ABoxAsyncStatus status;
 } ABoxTlsSlot;
 typedef struct {
