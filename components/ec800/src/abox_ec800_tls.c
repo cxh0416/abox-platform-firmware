@@ -48,8 +48,10 @@ int ABoxEc800Tls_Prepare(ABoxEc800Tls *t, ABoxTlsLease l,
           !ABoxEc800Ufs_PathValid(p->ca_file))) || !timeout || timeout > INT32_MAX ||
         s->status != ABOX_ASYNC_IDLE || s->pins) return 0;
     s->auth_mode = p->credentials.mode;
-    if (s->auth_mode == ABOX_TLS_AUTH_PSK) memcpy(s->psk.identity, p->credentials.identity, sizeof(s->psk.identity));
+    if (s->auth_mode == ABOX_TLS_AUTH_PSK) {
+        memcpy(s->psk.identity, p->credentials.identity, sizeof(s->psk.identity));
         memcpy(s->psk.secret, p->credentials.secret, sizeof(s->psk.secret));
+    }
     if (p->credentials.mode == ABOX_TLS_AUTH_CA) {
         strcpy(s->ca_file, p->ca_file); s->revision = p->ca_revision;
     }
