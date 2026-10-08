@@ -78,7 +78,7 @@ void ABoxEc800Tls_Poll(ABoxEc800Tls *t, uint32_t now)
             if (result == ABOX_ASYNC_PENDING) continue;
             if (result != ABOX_ASYNC_OK) { stop(t, s, ABOX_ASYNC_ERROR); continue; }
             s->waiting = 0;
-            if (++s->step == (s->auth_mode == ABOX_TLS_AUTH_PSK ? 5 : 10)) {
+            if (++s->step == (s->auth_mode == ABOX_TLS_AUTH_PSK ? 5 : 9)) {
                 if (s->auth_mode == ABOX_TLS_AUTH_PSK)
                     memset(s->psk.secret, 0, sizeof(s->psk.secret));
                 s->status = ABOX_ASYNC_OK; continue;
@@ -104,8 +104,10 @@ void ABoxEc800Tls_Poll(ABoxEc800Tls *t, uint32_t now)
         case 5: snprintf(command, sizeof(command), "AT+QSSLCFG=\"ignoreinvalidcertsign\",%u,0", id); break;
         case 6: snprintf(command, sizeof(command), "AT+QSSLCFG=\"ignoremulticertchainverify\",%u,0", id); break;
         case 7: snprintf(command, sizeof(command), "AT+QSSLCFG=\"cacert\",%u,\"%s\"", id, s->ca_file); break;
-        case 8: snprintf(command, sizeof(command), "AT+QSSLCFG=\"ciphersuite\",%u,0xFFFF", id); break;
-        default: snprintf(command, sizeof(command), "AT+QSSLCFG=\"psk\",%u,\"\",\"\"", id); break;
+        /* EC800 rejects an empty PSK. Select a certificate-only suite instead
+         * of enabling all suites with a retained PSK in a reused context.
+         * Existing ABox CA endpoints use RSA certificates. */
+        default: snprintf(command, sizeof(command), "AT+QSSLCFG=\"ciphersuite\",%u,0x009C", id); break;
         }
         }
         /* Rejected enqueue is retried until the overall deadline. */

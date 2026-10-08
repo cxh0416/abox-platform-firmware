@@ -5,7 +5,11 @@ EC800E 固件固定，PSK 路径使用 TLS 1.2 / `0xCCAC`
 (`ECDHE-PSK-CHACHA20-POLY1305`)，仅允许这一套件。`seclevel=0` 在此路径
 表示不用 X.509，服务端身份由双方持有的逐设备 PSK 证明；不是匿名 TLS。
 PSK 模式不依赖 CCLK、OTA CA 或证书时间。业务 UTC、误差边界、有效期与幂等照常运行。
-CA 路径仍要求 CA 和时间，并重置复用 context 的套件与 PSK 设置。失败没有明文降级。
+CA 路径仍要求 CA 和时间。现有 RSA CA profile 显式选择证书套件 `0x009C`
+(TLS_RSA_WITH_AES_128_GCM_SHA256)，排除复用 context 中残留 PSK 的协商；
+模组实测拒绝空 PSK 清除命令，不能把这个命令加入 CA 准备流程。
+该 CA 基线要求 RSA 服务端证书，ECDSA CA endpoint 须另配匹配的证书套件；
+PSK 模式仍只有 `0xCCAC`。失败没有明文降级。
 
 ## 配置和秘密边界
 
@@ -47,7 +51,10 @@ PSK identity 不会自动成为 MQTT username；两层各自验证。V4 Topic/Pa
 `tools/mqtt_psk_station.py --bundle <private.json> --elf <maintenance.elf>
 --gdb <arm-none-eabi-gdb> --port 2331` 仅向本地 RAM 邮箱注入候选；JSON 可包含
 host、port、username、password（空字符串保留原字段）。先核对实机 UID/VID。
-产品 Poll 把候选复制进已有 trial，工具返回 accepted 仅表示受理，随后清空邮箱。
+产品 Poll 把候选复制进已有 trial，工具先验证 RAM 写入读回，返回 accepted 仅表示受理，随后清空邮箱。
+GDB server 不启用内存/协议转储日志。工位工具仅在 SWD 暂停时冻结看门狗，运行时照常计时。
+巡防和清扫工位构建暂停 HTTP 入网，借用未入网时空闲的响应缓冲；试用开始后关闭该邮箱，
+不复用已就绪设备的幂等响应缓存。送餐车使用独立工位缓冲。
 工位固件须换回普通构建，并核验启动、实际 Broker 会话、订阅发布、平台授时、
 配置读回和重启。普通构建默认 OFF，没有这个入口，不开放新的网络注入端点。
 

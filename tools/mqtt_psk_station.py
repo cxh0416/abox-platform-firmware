@@ -39,14 +39,18 @@ def main():
     if not 1 <= args.port <= 65535:
         parser.error("invalid local GDB port")
     raw = encode(json.loads(args.bundle.read_text(encoding="ascii")))
+    station_workspace = None
     def run(commands):
-        argv = [args.gdb, "-batch", str(args.elf), "-ex", "set pagination off",
-                "-ex", f"target remote 127.0.0.1:{args.port}"]
+        argv = [args.gdb, "-batch", str(args.elf.resolve()), "-ex", "set pagination off",
+                "-ex", f"target remote 127.0.0.1:{args.port}",
+                # Freeze watchdog only while this controlled SWD session halts
+                # the MCU; running firmware retains its normal watchdog.
+                "-ex", "set {unsigned}0xE0042004 = (*(unsigned*)0xE0042004) | 0x300"]
         for command in commands: argv += ["-ex", command]
         argv += ["-ex", "detach"]
-        result = subprocess.run(argv, capture_output=True, text=True, timeout=15)
+        result = subprocess.run(argv, capture_output=True, text=True, timeout=15, cwd=station_workspace)
         # Do not dump GDB diagnostics: they can contain station memory.
-        if result.returncode or "Error" in result.stderr or "No symbol" in result.stderr:
+        if result.returncode or (result.stderr.strip() and result.stderr.strip() != "Resetting target"):
             raise RuntimeError("station GDB operation failed; inspect locally without logging secret memory")
         return result.stdout
     address = run(["p/x (void*)ABoxPskStation_Input"])
@@ -54,9 +58,15 @@ def main():
     if not match or not 0x20000000 <= int(match[1], 16) < 0x20010000: raise RuntimeError("station symbols missing; use the matching maintenance ELF")
     request = secrets.randbelow(0xfffffffe) + 1
     with tempfile.TemporaryDirectory(prefix="abox-private-station-") as directory:
+        station_workspace = directory
         path = Path(directory) / "input.bin"
+        readback = Path(directory) / "readback.bin"
         path.write_bytes(raw)
-        run([f'restore "{path.as_posix()}" binary {match[1]}',
+        run([f'restore input.bin binary {match[1]}',
+             f'dump binary memory readback.bin {match[1]} {hex(int(match[1],16)+len(raw))}'])
+        if readback.read_bytes() != raw:
+            raise RuntimeError("station RAM readback mismatch; candidate not submitted")
+        run([
              f"set {{unsigned}} &ABoxPskStation_Request={request}"])
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
@@ -67,7 +77,7 @@ def main():
                 if not accepted or int(accepted[1]) != 1: raise RuntimeError("candidate rejected")
                 print("Candidate accepted. Verify Broker, saved configuration and ordinary reboot before retiring any identity.")
                 return
-            time.sleep(.2)
+            time.sleep(1)
         raise RuntimeError("station result unknown; read current state before retrying")
 
 
