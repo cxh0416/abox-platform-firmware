@@ -46,7 +46,7 @@ static ABoxTlsLease prepared(ABoxEc800Tls *t, uint8_t id)
     unsigned i;
     CHECK(ABoxEc800Tls_Acquire(t, id, 16, &l));
     CHECK(ABoxEc800Tls_Prepare(t, l, &profile, 0, 100));
-    for (i = 0; i < 6; ++i) ABoxEc800Tls_Poll(t, i);
+    for (i = 0; i < 9; ++i) ABoxEc800Tls_Poll(t, i);
     CHECK(ABoxEc800Tls_Status(t, l) == ABOX_ASYNC_OK); return l;
 }
 #endif

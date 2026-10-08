@@ -38,6 +38,10 @@ active -> candidate -> prepare -> connect -> subscribe -> proof
        \-- 任一失败/取消/超时 -> restore active
 ```
 
+TLS 初始化显式清除 `ignorecertitem`、`ignoreinvalidcertsign` 和
+`ignoremulticertchainverify`，同时启用证书时间校验；任何设置失败都阻止连接。
+不得依赖模组默认值或上一连接留下的校验策略。SNI 不能替代实机主机名负向验证。
+
 该流程同等覆盖 `plain -> TLS`、`TLS -> plain`、`TLS -> TLS` 和
 `plain -> plain`。`PREPARED` 只表示 candidate 所需的 TLS 绑定或明文解绑已完成；
 `CONNECTED` 不能替代 `SUBSCRIBED`，通用 MQTT ACK 不能替代与本轮 session 和

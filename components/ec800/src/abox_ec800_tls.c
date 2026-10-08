@@ -69,13 +69,17 @@ void ABoxEc800Tls_Poll(ABoxEc800Tls *t, uint32_t now)
             if (result == ABOX_ASYNC_PENDING) continue;
             if (result != ABOX_ASYNC_OK) { stop(t, s, ABOX_ASYNC_ERROR); continue; }
             s->waiting = 0;
-            if (++s->step == 5) { s->status = ABOX_ASYNC_OK; continue; }
+            if (++s->step == 8) { s->status = ABOX_ASYNC_OK; continue; }
         }
         switch (s->step) {
         case 0: snprintf(command, sizeof(command), "AT+QSSLCFG=\"sslversion\",%u,3", id); break;
         case 1: snprintf(command, sizeof(command), "AT+QSSLCFG=\"seclevel\",%u,1", id); break;
         case 2: snprintf(command, sizeof(command), "AT+QSSLCFG=\"sni\",%u,1", id); break;
         case 3: snprintf(command, sizeof(command), "AT+QSSLCFG=\"ignorelocaltime\",%u,0", id); break;
+        /* A modem's default or previous context must not weaken verification. */
+        case 4: snprintf(command, sizeof(command), "AT+QSSLCFG=\"ignorecertitem\",%u,0", id); break;
+        case 5: snprintf(command, sizeof(command), "AT+QSSLCFG=\"ignoreinvalidcertsign\",%u,0", id); break;
+        case 6: snprintf(command, sizeof(command), "AT+QSSLCFG=\"ignoremulticertchainverify\",%u,0", id); break;
         default: snprintf(command, sizeof(command), "AT+QSSLCFG=\"cacert\",%u,\"%s\"", id, s->ca_file); break;
         }
         /* Rejected enqueue is retried until the overall deadline. */

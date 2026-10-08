@@ -16,10 +16,13 @@ int main(void)
     CHECK(!ABoxEc800Tls_SetSupportedMask(&t, 0U));
     CHECK(!ABoxEc800Tls_Acquire(&t, 2, 16, &other)); /* Same owner also conflicts. */
     CHECK(!ABoxEc800Tls_Acquire(&t, 2, 17, &other));
-    CHECK(m.count == 5);
+    CHECK(m.count == 8);
     CHECK(!strcmp(m.commands[0], "AT+QSSLCFG=\"sslversion\",2,3"));
     CHECK(!strcmp(m.commands[3], "AT+QSSLCFG=\"ignorelocaltime\",2,0"));
-    CHECK(!strcmp(m.commands[4], "AT+QSSLCFG=\"cacert\",2,\"UFS:mqtt_ca_v1.pem\""));
+    CHECK(!strcmp(m.commands[4], "AT+QSSLCFG=\"ignorecertitem\",2,0"));
+    CHECK(!strcmp(m.commands[5], "AT+QSSLCFG=\"ignoreinvalidcertsign\",2,0"));
+    CHECK(!strcmp(m.commands[6], "AT+QSSLCFG=\"ignoremulticertchainverify\",2,0"));
+    CHECK(!strcmp(m.commands[7], "AT+QSSLCFG=\"cacert\",2,\"UFS:mqtt_ca_v1.pem\""));
     CHECK(ABoxEc800Tls_Pin(&t, l));
     CHECK(!ABoxEc800Tls_Release(&t, l));
     CHECK(!ABoxEc800Tls_Prepare(&t, l, &profile, 0, 100));
@@ -61,7 +64,7 @@ int main(void)
     CHECK(ABoxEc800Tls_Status(&t, other) == ABOX_ASYNC_TIMEOUT);
     CHECK(ABoxEc800Tls_Release(&t, other));
     /* Error at each individual configuration step must never produce ready. */
-    for (i = 0; i < 5; ++i) {
+    for (i = 0; i < 8; ++i) {
         unsigned j;
         m.reject = 0; m.result = ABOX_ASYNC_OK;
         CHECK(ABoxEc800Tls_Acquire(&t, 2, 17, &other));
@@ -79,10 +82,10 @@ int main(void)
     CHECK(ABoxEc800Tls_Acquire(&t, 3, 17, &other));
     CHECK(ABoxEc800Tls_Prepare(&t, l, &profile, 0, 100));
     CHECK(ABoxEc800Tls_Prepare(&t, other, &profile, 0, 100));
-    for (i = 0; i < 12; ++i) ABoxEc800Tls_Poll(&t, i);
+    for (i = 0; i < 20; ++i) ABoxEc800Tls_Poll(&t, i);
     CHECK(ABoxEc800Tls_Status(&t, l) == ABOX_ASYNC_OK);
     CHECK(ABoxEc800Tls_Status(&t, other) == ABOX_ASYNC_OK);
-    CHECK(m.count == 10);
+    CHECK(m.count == 16);
     CHECK(ABoxEc800Tls_Release(&t, l));
     CHECK(ABoxEc800Tls_Acquire(&t, 2, 16, &l));
     CHECK(ABoxEc800Tls_Prepare(&t, l, &profile, 0, 100));
