@@ -173,8 +173,11 @@ static void event(ABoxEc800Event kind, const uint8_t *bytes,
         ++m->counters.urc_rejected;
     count = numbers(line, "+QMTCONN:", &client, &id, &result);
     if (count == 3 && m->state == ABOX_MQTT_EC800_CONNECTING &&
-        client == m->config.client_index)
+        client == m->config.client_index) {
         m->urc_pending = id == 0U && result == 0 ? URC_OK : URC_FAILED;
+        /* A received negative CONNACK closes the server-side MQTT transport. */
+        m->urc_result = id == 0U && result >= 1 && result <= 5 ? 2U : 0U;
+    }
     else if (count > 0 && !strncmp(line, "+QMTCONN:", 9U))
         ++m->counters.urc_rejected;
     count = numbers(line, "+QMTSUB:", &client, &id, &result);
@@ -197,6 +200,8 @@ static void event(ABoxEc800Event kind, const uint8_t *bytes,
 
 static void fail_closed(ABoxMqttEc800 *m, uint32_t now)
 {
+    uint8_t refused = m->state == ABOX_MQTT_EC800_CONNECTING &&
+                      m->urc_pending == URC_FAILED && m->urc_result == 2U;
     if (m->publish_active) published(m, ABOX_MQTT_EC800_PUBLISH_FAILED);
     if (m->command_pending || m->at->quarantined) {
         ABoxEc800At_Quarantine(m->at);
@@ -209,7 +214,9 @@ static void fail_closed(ABoxMqttEc800 *m, uint32_t now)
         change(m, ABOX_MQTT_EC800_RETRY_WAIT, now);
         return;
     }
-    m->close_step = 0U;
+    /* No MQTT session exists after explicit refusal. Still close any retained
+     * modem client; ERROR here means the rejected client is already gone. */
+    m->close_step = refused ? 2U : 0U;
     change(m, ABOX_MQTT_EC800_CLOSING, now);
 }
 
@@ -442,7 +449,7 @@ static void closing(ABoxMqttEc800 *m, uint32_t now)
         }
         return;
     }
-    if (m->command_result == CMD_FAILED && m->close_step) {
+    if (m->command_result == CMD_FAILED && m->close_step && m->close_step != 2U) {
         ABoxEc800At_Quarantine(m->at);
         change(m, ABOX_MQTT_EC800_BLOCKED, now);
         return;

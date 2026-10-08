@@ -338,6 +338,20 @@ int main(void)
     assert(ABoxMqttEc800_Stop(&f.mqtt, f.now) == 0);
     f.now += 1600; cycle(&f);
     assert(ABoxMqttEc800_Stop(&f.mqtt, f.now) == 1);
+    /* Broker CONNACK 5: TLS succeeded, MQTT was refused and socket closed.
+     * A modem ERROR from closing that rejected client is synchronized. */
+    memset(&f,0,sizeof(f));
+    assert(ABoxEc800At_Init(&f.at,&port));
+    assert(ABoxMqttEc800_Init(&f.mqtt,&f.at,&config,&buffers,&callbacks,0U));
+    f.mqtt.state=ABOX_MQTT_EC800_CONNECTING;
+    f.mqtt.enabled=f.mqtt.security_ready=1;
+    answer(&f,"AT+QMTCONN=1","OK\r\n+QMTCONN: 1,0,5\r\n");
+    assert(f.mqtt.state==ABOX_MQTT_EC800_CLOSING);
+    answer(&f,"AT+QMTCLOSE=1","ERROR\r\n");
+    assert(f.mqtt.state==ABOX_MQTT_EC800_RETRY_WAIT && !f.at.quarantined);
+    assert(ABoxMqttEc800_Stop(&f.mqtt,f.now)==0);
+    f.now+=1600; cycle(&f);
+    assert(ABoxMqttEc800_Stop(&f.mqtt,f.now)==1);
     puts("abox_mqtt_ec800_test passed");
     return 0;
 }
