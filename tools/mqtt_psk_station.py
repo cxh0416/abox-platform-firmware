@@ -49,9 +49,9 @@ def main():
         if result.returncode or "Error" in result.stderr or "No symbol" in result.stderr:
             raise RuntimeError("station GDB operation failed; inspect locally without logging secret memory")
         return result.stdout
-    address = run(["p/x (void*)&ABoxPskStation_Input"])
+    address = run(["p/x (void*)ABoxPskStation_Input"])
     match = re.search(r"= (0x[0-9a-fA-F]+)", address)
-    if not match: raise RuntimeError("station symbols missing; use the matching maintenance ELF")
+    if not match or not 0x20000000 <= int(match[1], 16) < 0x20010000: raise RuntimeError("station symbols missing; use the matching maintenance ELF")
     request = secrets.randbelow(0xfffffffe) + 1
     with tempfile.TemporaryDirectory(prefix="abox-private-station-") as directory:
         path = Path(directory) / "input.bin"
