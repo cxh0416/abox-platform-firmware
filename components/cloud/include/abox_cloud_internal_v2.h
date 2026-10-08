@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "cJSON.h"
+#include "abox_ec800_tls.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,6 +31,8 @@ int ABoxCloudInternalV2_Open(const char *payload, size_t length,
                              const char *expected_product,
                              size_t request_id_capacity,
                              ABoxCloudInternalV2Envelope *envelope);
+/* Parse the internal rotation fields only; transport/trial policy stays with caller. */
+int ABoxCloudInternalV2_PskCredentials(const cJSON *params, ABoxTlsCredentials *output);
 void ABoxCloudInternalV2_Close(ABoxCloudInternalV2Envelope *envelope);
 
 #ifdef __cplusplus

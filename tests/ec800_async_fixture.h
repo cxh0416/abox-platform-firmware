@@ -6,7 +6,7 @@
 #include <string.h>
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #x); exit(1); } } while (0)
 typedef struct {
-    char commands[64][160];
+    char commands[128][160];
     uint64_t serial, current;
     unsigned count, cancels;
     int reject, drain;
@@ -17,7 +17,7 @@ static int mock_submit(void *context, const char *cmd, uint32_t timeout, uint64_
     MockCommand *m = context;
     CHECK(timeout > 0);
     if (m->reject || m->current) return 0;
-    CHECK(m->count < 64 && strlen(cmd) < 160);
+    CHECK(m->count < 128 && strlen(cmd) < 160);
     strcpy(m->commands[m->count++], cmd);
     *id = m->current = ++m->serial; return 1;
 }
@@ -46,7 +46,7 @@ static ABoxTlsLease prepared(ABoxEc800Tls *t, uint8_t id)
     unsigned i;
     CHECK(ABoxEc800Tls_Acquire(t, id, 16, &l));
     CHECK(ABoxEc800Tls_Prepare(t, l, &profile, 0, 100));
-    for (i = 0; i < 9; ++i) ABoxEc800Tls_Poll(t, i);
+    for (i = 0; i < 11; ++i) ABoxEc800Tls_Poll(t, i);
     CHECK(ABoxEc800Tls_Status(t, l) == ABOX_ASYNC_OK); return l;
 }
 #endif

@@ -80,3 +80,12 @@ proof 失败均不得尝试同一 host/port 的明文连接。只有收到明确
 
 主机测试只能证明合同状态机和适配逻辑。真实 CA、模组 TLS 参数、Broker、订阅、
 proof、明文/TLS 双向切换和复位恢复仍需分别保留实机证据。
+
+## TLS 认证模式
+
+连接配置的 `tls_credentials.mode` 选择 CA(0) 或 PSK(1)，与产品 profile ID 独立。
+PSK 使用固定 TLS 1.2 / 0xCCAC 及 32 字符随机 ASCII；复用同一 runtime、租约、
+AT owner 和 trial，不依赖 OTA CA/CCLK 才能建链。普通日志不接收秘密回显。
+配置、工位注入、轮换与服务端边界见 [内部 PSK 运维](mqtt_psk_operations.md)。
+明确失败的 QMTOPEN:-1 表示没有建立客户端；停止流程等待延迟结果再决定关闭，
+保留 URC drain 与未知结果隔离，避免失败候选因关闭不存在客户端而阻塞回滚。

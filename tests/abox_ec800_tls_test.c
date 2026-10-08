@@ -1,4 +1,5 @@
 #include "ec800_async_fixture.h"
+#include "abox_tls_secret_record.h"
 int main(void)
 {
     MockCommand m;
@@ -16,7 +17,7 @@ int main(void)
     CHECK(!ABoxEc800Tls_SetSupportedMask(&t, 0U));
     CHECK(!ABoxEc800Tls_Acquire(&t, 2, 16, &other)); /* Same owner also conflicts. */
     CHECK(!ABoxEc800Tls_Acquire(&t, 2, 17, &other));
-    CHECK(m.count == 8);
+    CHECK(m.count == 10);
     CHECK(!strcmp(m.commands[0], "AT+QSSLCFG=\"sslversion\",2,3"));
     CHECK(!strcmp(m.commands[3], "AT+QSSLCFG=\"ignorelocaltime\",2,0"));
     CHECK(!strcmp(m.commands[4], "AT+QSSLCFG=\"ignorecertitem\",2,0"));
@@ -64,14 +65,14 @@ int main(void)
     CHECK(ABoxEc800Tls_Status(&t, other) == ABOX_ASYNC_TIMEOUT);
     CHECK(ABoxEc800Tls_Release(&t, other));
     /* Error at each individual configuration step must never produce ready. */
-    for (i = 0; i < 8; ++i) {
+    for (i = 0; i < 10; ++i) {
         unsigned j;
         m.reject = 0; m.result = ABOX_ASYNC_OK;
         CHECK(ABoxEc800Tls_Acquire(&t, 2, 17, &other));
         CHECK(ABoxEc800Tls_Prepare(&t, other, &profile, 0, 100));
         ABoxEc800Tls_Poll(&t, 0);
         for (j = 0; j < i; ++j) ABoxEc800Tls_Poll(&t, j + 1);
-        m.result = ABOX_ASYNC_ERROR; ABoxEc800Tls_Poll(&t, 8);
+        m.result = ABOX_ASYNC_ERROR; ABoxEc800Tls_Poll(&t, 10);
         CHECK(ABoxEc800Tls_Status(&t, other) == ABOX_ASYNC_ERROR);
         CHECK(ABoxEc800Tls_Release(&t, other));
     }
@@ -82,10 +83,10 @@ int main(void)
     CHECK(ABoxEc800Tls_Acquire(&t, 3, 17, &other));
     CHECK(ABoxEc800Tls_Prepare(&t, l, &profile, 0, 100));
     CHECK(ABoxEc800Tls_Prepare(&t, other, &profile, 0, 100));
-    for (i = 0; i < 20; ++i) ABoxEc800Tls_Poll(&t, i);
+    for (i = 0; i < 24; ++i) ABoxEc800Tls_Poll(&t, i);
     CHECK(ABoxEc800Tls_Status(&t, l) == ABOX_ASYNC_OK);
     CHECK(ABoxEc800Tls_Status(&t, other) == ABOX_ASYNC_OK);
-    CHECK(m.count == 16);
+    CHECK(m.count == 20);
     CHECK(ABoxEc800Tls_Release(&t, l));
     CHECK(ABoxEc800Tls_Acquire(&t, 2, 16, &l));
     CHECK(ABoxEc800Tls_Prepare(&t, l, &profile, 0, 100));
@@ -94,6 +95,46 @@ int main(void)
     CHECK(ABoxEc800Tls_Status(&t, l) == ABOX_ASYNC_CANCELLED);
     CHECK(ABoxEc800Tls_Status(&t, other) == ABOX_ASYNC_OK);
     CHECK(ABoxEc800Tls_Release(&t, l));
+    p = mock_port(&m);
+    CHECK(ABoxEc800Tls_Init(&t, &p, 4));
+    CHECK(ABoxEc800Tls_Acquire(&t, 2, 16, &l));
+    memset(&profile, 0, sizeof(profile));
+    profile.credentials.mode = ABOX_TLS_AUTH_PSK;
+    profile.credentials.generation = 1;
+    strcpy(profile.credentials.identity, "test-device-g1");
+    /* Public deterministic fixture, never a provisioned device secret. */
+    strcpy(profile.credentials.secret, "abcdefghijklmnopqrstuvwxyz012345");
+    CHECK(ABoxEc800Tls_Prepare(&t, l, &profile, 0, 100));
+    for (i = 0; i < 6; ++i) ABoxEc800Tls_Poll(&t, i);
+    CHECK(ABoxEc800Tls_Status(&t, l) == ABOX_ASYNC_OK);
+    CHECK(m.count == 5);
+    CHECK(!strcmp(m.commands[1], "AT+QSSLCFG=\"ciphersuite\",2,0xCCAC"));
+    CHECK(!strcmp(m.commands[2], "AT+QSSLCFG=\"seclevel\",2,0"));
+    CHECK(!strcmp(m.commands[3], "AT+QSSLCFG=\"session_cache\",2,0"));
+    CHECK(strstr(m.commands[4], profile.credentials.secret));
+    CHECK(!t.slots[2].credentials.secret[0]);
+    CHECK(ABoxEc800Tls_Release(&t, l));
+    CHECK(ABoxEc800Tls_Acquire(&t, 2, 16, &l));
+    profile.credentials.secret[31] = 0;
+    CHECK(!ABoxEc800Tls_Prepare(&t, l, &profile, 0, 100));
+    profile.credentials.secret[31] = '5';
+    profile.credentials.identity[0] = '"';
+    CHECK(!ABoxEc800Tls_Prepare(&t, l, &profile, 0, 100));
+    profile.credentials.identity[0] = 't';
+    profile.credentials.generation = 0;
+    CHECK(!ABoxEc800Tls_Prepare(&t, l, &profile, 0, 100));
+    CHECK(ABoxEc800Tls_Release(&t, l));
+    {
+        ABoxTlsSecretRecord record;
+        ABoxTlsCredentials decoded;
+        memset(&record, 0xff, sizeof(record));
+        CHECK(ABoxTlsSecretRecord_Decode(&record, &decoded) && decoded.mode == ABOX_TLS_AUTH_CA);
+        profile.credentials.generation = 1;
+        ABoxTlsSecretRecord_Encode(&record, &profile.credentials);
+        CHECK(ABoxTlsSecretRecord_Decode(&record, &decoded) && decoded.generation == 1);
+        record.credentials.secret[0] ^= 1;
+        CHECK(!ABoxTlsSecretRecord_Decode(&record, &decoded) && decoded.mode == 0xff);
+    }
     puts("TLS: reservation, ownership, pins, stale leases, reset, deadline and per-step failures passed");
     return 0;
 }

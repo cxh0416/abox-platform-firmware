@@ -8,6 +8,18 @@ extern "C" {
 #define ABOX_TLS_CONTEXT_CAPACITY 8U
 #define ABOX_TLS_LEGACY_HTTPS_CONTEXT 1U
 typedef struct { uint8_t context; uint64_t generation; } ABoxTlsLease;
+#define ABOX_TLS_PSK_IDENTITY_SIZE 32U
+#define ABOX_TLS_PSK_SECRET_SIZE 33U
+typedef enum { ABOX_TLS_AUTH_CA = 0, ABOX_TLS_AUTH_PSK = 1 } ABoxTlsAuthMode;
+/* Secret is exactly 32 ASCII bytes, never a hex-decoded key. Provision locally
+ * with a CSPRNG. Neither this structure nor its AT command may be logged. */
+typedef struct {
+    uint32_t generation;
+    char identity[ABOX_TLS_PSK_IDENTITY_SIZE];
+    char secret[ABOX_TLS_PSK_SECRET_SIZE];
+    uint8_t mode;
+} ABoxTlsCredentials;
+int ABoxTlsCredentials_Valid(const ABoxTlsCredentials *credentials);
 typedef struct {
     const char *ca_file;
     uint32_t ca_revision;
@@ -15,13 +27,19 @@ typedef struct {
      * CA filenames are immutable/versioned while any lease uses them. */
     uint8_t ca_verified;
     uint8_t time_valid;
+    ABoxTlsCredentials credentials;
 } ABoxTlsProfile;
 typedef struct {
     uint64_t generation, operation;
     uint32_t owner, revision, started, timeout;
     uint16_t pins;
     uint8_t step, waiting;
-    char ca_file[ABOX_EC800_UFS_PATH_SIZE];
+    /* Only one authentication mode is prepared per lease. */
+    union {
+        char ca_file[ABOX_EC800_UFS_PATH_SIZE];
+        ABoxTlsCredentials credentials;
+    };
+    uint8_t auth_mode;
     ABoxAsyncStatus status;
 } ABoxTlsSlot;
 typedef struct {

@@ -19,7 +19,7 @@ int main(void)
     CHECK(!ABoxEc800Tls_Release(&tls, lease));
     ABoxMqttTls_Poll(&mqtt, 0); ABoxMqttTls_Poll(&mqtt, 1);
     CHECK(mqtt.status == ABOX_ASYNC_OK);
-    CHECK(!strcmp(mock.commands[9], "AT+QMTCFG=\"SSL\",0,1,2"));
+    CHECK(!strcmp(mock.commands[11], "AT+QMTCFG=\"SSL\",0,1,2"));
     CHECK(!ABoxMqttTls_Start(&mqtt, 0, none, 0, 100));
     CHECK(ABoxMqttTls_Unbind(&mqtt, 0, 100));
     ABoxMqttTls_Poll(&mqtt, 0);

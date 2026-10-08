@@ -213,6 +213,40 @@ int main(void)
         assert(tls_runtime.lease.generation == 0U);
     }
     {
+        Fixture ps = {0};
+        ABoxEc800At ps_at;
+        ABoxMqttRuntime ps_runtime;
+        ABoxMqttConfig secure = {"psk.example", 26443, "u", "p", 1, 0};
+        unsigned step;
+        secure.tls_credentials.mode = ABOX_TLS_AUTH_PSK;
+        secure.tls_credentials.generation = 2;
+        strcpy(secure.tls_credentials.identity, "fixture-g2");
+        strcpy(secure.tls_credentials.secret, "abcdefghijklmnopqrstuvwxyz012345");
+        at_port.context = &ps;
+        port.user = &ps;
+        port.ca_ready = port.time_valid = clock_invalid;
+        assert(ABoxEc800At_Init(&ps_at, &at_port));
+        assert(ABoxMqttRuntime_Init(&ps_runtime, &ps_at, &port, &options, &secure, 0));
+        for (step = 1; step < 40 && ps_runtime.state != ABOX_MQTT_RUNTIME_CONNECT; ++step) {
+            ps.now = step;
+            ABoxMqttRuntime_Poll(&ps_runtime, step);
+            ABoxEc800At_Task(&ps_at);
+            assert(!strstr(ps.last_command, "CCLK") && !strstr(ps.last_command, "cacert"));
+            if (ps_at.active_valid) ABoxEc800At_Feed(&ps_at, (const uint8_t *)"OK\r\n", 4);
+        }
+        assert(ABoxMqttRuntime_IsTlsActive(&ps_runtime));
+        assert(!ABoxMqttRuntime_IsReady(&ps_runtime));
+        ps.connected = ps.ready = 1;
+        ABoxMqttRuntime_Poll(&ps_runtime, step++);
+        ABoxMqttRuntime_Poll(&ps_runtime, step++);
+        assert(ABoxMqttRuntime_IsReady(&ps_runtime));
+        assert(ps_runtime.active.tls_credentials.generation == 2);
+        ABoxMqttRuntime_OnModemReset(&ps_runtime, step);
+        assert(ps_runtime.state == ABOX_MQTT_RUNTIME_WAIT_CA);
+        assert(ps_runtime.requested.tls_credentials.generation == 2);
+        port.ca_ready = port.time_valid = yes;
+    }
+    {
         Fixture live_reset = {0};
         ABoxEc800At live_at;
         ABoxMqttRuntime live_runtime;

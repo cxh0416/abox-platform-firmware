@@ -1,4 +1,6 @@
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(NAME abox_mqtt_psk_files_test
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_mqtt_psk_files.py)
 add_executable(abox_monotonic_test abox_monotonic_test.c)
 target_include_directories(abox_monotonic_test PRIVATE monotonic_stub
     ../targets/stm32f105_ec800_v1/include)
@@ -125,3 +127,8 @@ add_test(NAME abox_app_service_test COMMAND abox_app_service_test)
 add_executable(abox_cloud_dispatch_queue_test abox_cloud_dispatch_queue_test.c)
 target_link_libraries(abox_cloud_dispatch_queue_test PRIVATE abox::cloud_service)
 add_test(NAME abox_cloud_dispatch_queue_test COMMAND abox_cloud_dispatch_queue_test)
+
+add_executable(abox_psk_station_test abox_psk_station_test.c
+    ../components/ec800/src/abox_psk_station.c)
+target_link_libraries(abox_psk_station_test PRIVATE abox::ec800_tls)
+add_test(NAME abox_psk_station_test COMMAND abox_psk_station_test)

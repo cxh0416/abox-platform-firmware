@@ -369,6 +369,7 @@ static void opening(ABoxMqttEc800 *m, uint32_t now)
         change(m, ABOX_MQTT_EC800_RETRY_WAIT, now);
         return;
     }
+    if (m->urc_pending == URC_FAILED && m->command_pending) return;
     if (m->command_result == CMD_FAILED || m->urc_pending == URC_FAILED ||
         (uint32_t)(now - m->entered_ms) >= m->config.open_timeout_ms) {
         fail_closed(m, now); return;
@@ -466,6 +467,13 @@ void ABoxMqttEc800_Poll(ABoxMqttEc800 *m, uint32_t now)
             change(m, ABOX_MQTT_EC800_BLOCKED, now);
         return;
     }
+    /* A stop may arrive between QMTOPEN's OK and its delayed result URC.
+     * Resolve that in-flight open before deciding whether a client exists. */
+    if (m->close_requested && m->state == ABOX_MQTT_EC800_OPENING) {
+        opening(m, now);
+        if (m->state == ABOX_MQTT_EC800_OPENING) return;
+        if (m->state == ABOX_MQTT_EC800_RETRY_WAIT) m->close_requested = 0U;
+    }
     if (m->close_requested && m->state != ABOX_MQTT_EC800_CLOSING &&
         m->state != ABOX_MQTT_EC800_RETRY_WAIT) {
         if (m->command_pending) return;
@@ -532,6 +540,12 @@ int ABoxMqttEc800_Stop(ABoxMqttEc800 *m, uint32_t now)
     if (m->state == ABOX_MQTT_EC800_IDLE ||
         m->state == ABOX_MQTT_EC800_PAUSED) return 1;
     if (m->state == ABOX_MQTT_EC800_RETRY_WAIT) return 0;
+    if (m->state == ABOX_MQTT_EC800_OPENING) {
+        if (!m->command_pending && m->command_result == CMD_NONE)
+            change(m, ABOX_MQTT_EC800_RETRY_WAIT, now);
+        else m->close_requested = 1U;
+        return 0;
+    }
     if (m->state != ABOX_MQTT_EC800_CLOSING) {
         if (m->command_pending) m->close_requested = 1U;
         else fail_closed(m, now);

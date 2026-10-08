@@ -18,6 +18,7 @@ typedef struct {
   const char *password;
   uint8_t tls_enabled;
   uint8_t tls_profile_id;
+  ABoxTlsCredentials tls_credentials;
 } ABoxMqttConfig;
 typedef enum {
   ABOX_MQTT_RUNTIME_IDLE = 0,

@@ -279,8 +279,25 @@ static void test_modem_ready_reaches_all_owners_during_active_command(void)
                               ABOX_EC800_PRIORITY_NORMAL, 1000U, done, 0));
 }
 
+static void test_credentials_never_reach_line_observers(void)
+{
+    ABoxEc800At at;
+    ABoxEc800AtPort port = {0, tick_ms, write_data, 0};
+    uint32_t observed = 0U;
+    const char *lines = "AT+QSSLCFG=\"psk\",0,\"device\",\"public-test-fixture-only\"\r\n"
+        "+QSSLCFG: \"psk\",0,\"device\",\"public-test-fixture-only\"\r\n"
+        "AT+QMTCONN=0,\"device\",\"user\",\"test-password\"\r\n";
+    assert(ABoxEc800At_Init(&at, &port));
+    assert(ABoxEc800At_Register(&at, ABOX_EC800_OWNER_MQTT, counted_event, &observed));
+    ABoxEc800At_Feed(&at, (const uint8_t *)lines, (uint16_t)strlen(lines));
+    assert(observed == 0U);
+    ABoxEc800At_Feed(&at, (const uint8_t *)"+QMTCONN: 0,0,0\r\n", 17U);
+    assert(observed == 1U);
+}
+
 int main(void)
 {
+    test_credentials_never_reach_line_observers();
     test_async_direct_command();
     test_http_post_waits_for_payload_and_result_urc();
     test_raw_split_and_dynamic_owner();

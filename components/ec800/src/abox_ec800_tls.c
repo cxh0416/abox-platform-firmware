@@ -42,10 +42,16 @@ int ABoxEc800Tls_Prepare(ABoxEc800Tls *t, ABoxTlsLease l,
                          const ABoxTlsProfile *p, uint32_t now, uint32_t timeout)
 {
     ABoxTlsSlot *s = slot(t, l);
-    if (!s || !p || !p->ca_verified || !p->time_valid || !p->ca_revision ||
-        !ABoxEc800Ufs_PathValid(p->ca_file) || !timeout || timeout > INT32_MAX ||
+    if (!s || !p || !ABoxTlsCredentials_Valid(&p->credentials) ||
+        (p->credentials.mode == ABOX_TLS_AUTH_CA &&
+         (!p->ca_verified || !p->time_valid || !p->ca_revision ||
+          !ABoxEc800Ufs_PathValid(p->ca_file))) || !timeout || timeout > INT32_MAX ||
         s->status != ABOX_ASYNC_IDLE || s->pins) return 0;
-    strcpy(s->ca_file, p->ca_file); s->revision = p->ca_revision;
+    s->auth_mode = p->credentials.mode;
+    if (s->auth_mode == ABOX_TLS_AUTH_PSK) s->credentials = p->credentials;
+    if (p->credentials.mode == ABOX_TLS_AUTH_CA) {
+        strcpy(s->ca_file, p->ca_file); s->revision = p->ca_revision;
+    }
     s->started = now; s->timeout = timeout; s->status = ABOX_ASYNC_PENDING; return 1;
 }
 static void stop(ABoxEc800Tls *t, ABoxTlsSlot *s, ABoxAsyncStatus reason)
@@ -69,8 +75,22 @@ void ABoxEc800Tls_Poll(ABoxEc800Tls *t, uint32_t now)
             if (result == ABOX_ASYNC_PENDING) continue;
             if (result != ABOX_ASYNC_OK) { stop(t, s, ABOX_ASYNC_ERROR); continue; }
             s->waiting = 0;
-            if (++s->step == 8) { s->status = ABOX_ASYNC_OK; continue; }
+            if (++s->step == (s->auth_mode == ABOX_TLS_AUTH_PSK ? 5 : 10)) {
+                if (s->auth_mode == ABOX_TLS_AUTH_PSK)
+                    memset(s->credentials.secret, 0, sizeof(s->credentials.secret));
+                s->status = ABOX_ASYNC_OK; continue;
+            }
         }
+        if (s->auth_mode == ABOX_TLS_AUTH_PSK) {
+            switch (s->step) {
+            case 0: snprintf(command, sizeof(command), "AT+QSSLCFG=\"sslversion\",%u,3", id); break;
+            case 1: snprintf(command, sizeof(command), "AT+QSSLCFG=\"ciphersuite\",%u,0xCCAC", id); break;
+            case 2: snprintf(command, sizeof(command), "AT+QSSLCFG=\"seclevel\",%u,0", id); break;
+            case 3: snprintf(command, sizeof(command), "AT+QSSLCFG=\"session_cache\",%u,0", id); break;
+            default: snprintf(command, sizeof(command), "AT+QSSLCFG=\"psk\",%u,\"%s\",\"%s\"", id,
+                              s->credentials.identity, s->credentials.secret); break;
+            }
+        } else {
         switch (s->step) {
         case 0: snprintf(command, sizeof(command), "AT+QSSLCFG=\"sslversion\",%u,3", id); break;
         case 1: snprintf(command, sizeof(command), "AT+QSSLCFG=\"seclevel\",%u,1", id); break;
@@ -80,11 +100,15 @@ void ABoxEc800Tls_Poll(ABoxEc800Tls *t, uint32_t now)
         case 4: snprintf(command, sizeof(command), "AT+QSSLCFG=\"ignorecertitem\",%u,0", id); break;
         case 5: snprintf(command, sizeof(command), "AT+QSSLCFG=\"ignoreinvalidcertsign\",%u,0", id); break;
         case 6: snprintf(command, sizeof(command), "AT+QSSLCFG=\"ignoremulticertchainverify\",%u,0", id); break;
-        default: snprintf(command, sizeof(command), "AT+QSSLCFG=\"cacert\",%u,\"%s\"", id, s->ca_file); break;
+        case 7: snprintf(command, sizeof(command), "AT+QSSLCFG=\"cacert\",%u,\"%s\"", id, s->ca_file); break;
+        case 8: snprintf(command, sizeof(command), "AT+QSSLCFG=\"ciphersuite\",%u,0xFFFF", id); break;
+        default: snprintf(command, sizeof(command), "AT+QSSLCFG=\"psk\",%u,\"\",\"\"", id); break;
+        }
         }
         /* Rejected enqueue is retried until the overall deadline. */
         s->waiting = (uint8_t)!!t->port.submit(t->port.context, command,
                      s->timeout - (uint32_t)(now - s->started), &s->operation);
+        memset(command, 0, sizeof(command));
     }
 }
 ABoxAsyncStatus ABoxEc800Tls_Status(const ABoxEc800Tls *t, ABoxTlsLease l)

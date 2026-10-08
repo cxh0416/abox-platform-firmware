@@ -81,3 +81,23 @@ void ABoxCloudInternalV2_Close(ABoxCloudInternalV2Envelope *envelope)
     cJSON_Delete(envelope->root);
     memset(envelope, 0, sizeof(*envelope));
 }
+
+int ABoxCloudInternalV2_PskCredentials(const cJSON *params, ABoxTlsCredentials *output)
+{
+    const cJSON *identity = cJSON_GetObjectItemCaseSensitive(params, "identity");
+    const cJSON *secret = cJSON_GetObjectItemCaseSensitive(params, "secret");
+    const cJSON *generation = cJSON_GetObjectItemCaseSensitive(params, "generation");
+    memset(output, 0, sizeof(*output));
+    if (!cJSON_IsString(identity) || strlen(identity->valuestring) >= sizeof(output->identity) ||
+        !cJSON_IsString(secret) || strlen(secret->valuestring) != 32U ||
+        !cJSON_IsNumber(generation) || generation->valuedouble < 1 ||
+        generation->valuedouble > 4294967295.0 ||
+        generation->valuedouble != (uint32_t)generation->valuedouble) return 0;
+    output->mode = ABOX_TLS_AUTH_PSK;
+    output->generation = (uint32_t)generation->valuedouble;
+    strcpy(output->identity, identity->valuestring);
+    strcpy(output->secret, secret->valuestring);
+    if (ABoxTlsCredentials_Valid(output)) return 1;
+    memset(output, 0, sizeof(*output));
+    return 0;
+}

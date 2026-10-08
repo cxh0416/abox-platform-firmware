@@ -40,6 +40,7 @@ static void gate(ABoxMqttRuntime *r, uint8_t on) {
 }
 static uint8_t config(ABoxMqttRuntime *r, const ABoxMqttConfig *c) {
   if (!c || !c->port || c->tls_enabled > 1U ||
+      (c->tls_enabled && !ABoxTlsCredentials_Valid(&c->tls_credentials)) ||
       (c->tls_enabled && c->tls_profile_id != r->options.tls_profile_id) ||
       !copy_text(r->host, sizeof(r->host), c->host) ||
       !copy_text(r->username, sizeof(r->username), c->username) ||
@@ -88,6 +89,21 @@ static int start(ABoxMqttRuntime *r, uint32_t now) {
   }
   state(r, ABOX_MQTT_RUNTIME_WAIT_CA, "wait-ca");
   return 1;
+}
+static void prepare_tls(ABoxMqttRuntime *r, uint32_t now) {
+  ABoxTlsProfile p = {0};
+  p.credentials = r->requested.tls_credentials;
+  if (p.credentials.mode == ABOX_TLS_AUTH_CA) {
+    p.ca_file = r->options.ca_file;
+    p.ca_revision = r->options.ca_revision;
+    p.ca_verified = r->callbacks.ca_ready(r->callbacks.user);
+    p.time_valid = r->callbacks.time_valid(r->callbacks.user);
+  }
+  if (!ABoxEc800Tls_Acquire(&r->tls, r->options.tls_context, r->options.owner, &r->lease) ||
+      !ABoxEc800Tls_Prepare(&r->tls, r->lease, &p, now, r->options.tls_timeout_ms)) {
+    fail(r, "prepare-start"); return;
+  }
+  state(r, ABOX_MQTT_RUNTIME_PREPARE, "prepare");
 }
 static void event(ABoxEc800Event e, const uint8_t *d, uint16_t n, void *u) {
   ABoxMqttRuntime *r = u;
@@ -436,7 +452,8 @@ void ABoxMqttRuntime_Poll(ABoxMqttRuntime *r, uint32_t now) {
     return;
   }
   if (r->state == ABOX_MQTT_RUNTIME_WAIT_CA) {
-    if (!r->callbacks.ca_ready(r->callbacks.user))
+    if (r->requested.tls_credentials.mode == ABOX_TLS_AUTH_CA &&
+        !r->callbacks.ca_ready(r->callbacks.user))
       return;
     if (r->options.probe_tls_capability && !r->tls_probe_complete) {
       if (!r->command.submit(r->command.context, "AT+QSSLCFG=?",
@@ -444,6 +461,10 @@ void ABoxMqttRuntime_Poll(ABoxMqttRuntime *r, uint32_t now) {
         return;
       r->tls_probe_supported = 0U;
       state(r, ABOX_MQTT_RUNTIME_PROBE_TLS, "tls-capability");
+      return;
+    }
+    if (r->requested.tls_credentials.mode == ABOX_TLS_AUTH_PSK) {
+      prepare_tls(r, now);
       return;
     }
     if (!r->command.submit(r->command.context,
@@ -477,7 +498,6 @@ void ABoxMqttRuntime_Poll(ABoxMqttRuntime *r, uint32_t now) {
     return;
   }
   if (r->state == ABOX_MQTT_RUNTIME_CLOCK) {
-    ABoxTlsProfile p;
     s = r->command.poll(r->command.context, r->operation);
     if (s == ABOX_ASYNC_PENDING)
       return;
@@ -485,18 +505,7 @@ void ABoxMqttRuntime_Poll(ABoxMqttRuntime *r, uint32_t now) {
       fail(r, "clock");
       return;
     }
-    p.ca_file = r->options.ca_file;
-    p.ca_revision = r->options.ca_revision;
-    p.ca_verified = 1;
-    p.time_valid = 1;
-    if (!ABoxEc800Tls_Acquire(&r->tls, r->options.tls_context, r->options.owner,
-                              &r->lease) ||
-        !ABoxEc800Tls_Prepare(&r->tls, r->lease, &p, now,
-                              r->options.tls_timeout_ms)) {
-      fail(r, "prepare-start");
-      return;
-    }
-    state(r, ABOX_MQTT_RUNTIME_PREPARE, "prepare");
+    prepare_tls(r, now);
     return;
   }
   if (r->state == ABOX_MQTT_RUNTIME_PREPARE) {

@@ -318,6 +318,26 @@ int main(void)
     answer(&f, "AT+QMTCLOSE=1", "ERROR\r\n");
     assert(ABoxMqttEc800_GetState(&f.mqtt) == ABOX_MQTT_EC800_BLOCKED);
     assert(f.at.quarantined);
+    /* A confirmed failed TLS open has no client to close. Drain, then stop
+     * without sending QMTDISC/QMTCLOSE or weakening security readiness. */
+    memset(&f, 0, sizeof(f));
+    assert(ABoxEc800At_Init(&f.at, &port));
+    assert(ABoxMqttEc800_Init(&f.mqtt, &f.at, &config, &buffers, &callbacks, 0U));
+    f.mqtt.state = ABOX_MQTT_EC800_OPENING;
+    f.mqtt.enabled = f.mqtt.security_ready = 1;
+    cycle(&f); /* QMTOPEN submitted, only terminal OK arrived so far. */
+    feed(&f, "OK\r\n");
+    f.command[0] = 0;
+    assert(ABoxMqttEc800_Stop(&f.mqtt, f.now) == 0);
+    cycle(&f);
+    assert(f.mqtt.state == ABOX_MQTT_EC800_OPENING && !f.command[0]);
+    feed(&f, "+QMTOPEN: 1,-1\r\n");
+    cycle(&f);
+    assert(f.mqtt.state == ABOX_MQTT_EC800_RETRY_WAIT);
+    assert(!f.at.quarantined && !f.command[0]);
+    assert(ABoxMqttEc800_Stop(&f.mqtt, f.now) == 0);
+    f.now += 1600; cycle(&f);
+    assert(ABoxMqttEc800_Stop(&f.mqtt, f.now) == 1);
     puts("abox_mqtt_ec800_test passed");
     return 0;
 }

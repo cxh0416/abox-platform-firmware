@@ -128,6 +128,10 @@ static void dispatch_line(ABoxEc800At *at, const uint8_t *data, uint16_t length)
 {
     ABoxEc800Owner target = ABOX_EC800_OWNER_NONE;
     uint8_t i;
+    /* ATE may still be enabled after reset. Never dispatch credential echoes
+     * or PSK readback to product observers/ordinary diagnostic logs. */
+    if (prefix(data, "AT+QSSLCFG=\"psk\"") ||
+        prefix(data, "+QSSLCFG: \"psk\"") || prefix(data, "AT+QMTCONN=")) return;
     if (length == 3U && memcmp(data, "RDY", 3U) == 0) {
         static const uint8_t ready[] = "RDY";
         ABoxEc800At_Reset(at);
