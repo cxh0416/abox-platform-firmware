@@ -1,5 +1,6 @@
 #ifndef ABOX_PSK_STATION_H
 #define ABOX_PSK_STATION_H
+#include <stddef.h>
 #include "abox_ec800_tls.h"
 /* Optional SWD station mailbox. OFF in normal firmware. No network endpoint. */
 typedef struct {
