@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "abox_ec800_tls.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,6 +17,7 @@ typedef struct {
     char vid[32], host[64], username[32], password[64];
     uint16_t port;
     uint8_t tls_enabled, tls_profile_id;
+    ABoxTlsCredentials tls_credentials;
 } ABoxEnrollmentCredential;
 
 typedef enum {
@@ -52,6 +54,7 @@ typedef struct {
     uint32_t retry_started, retry_delay;
     uint8_t expected_tls_profile_id;
     uint8_t have_request, waiting_trial, due, cancelled;
+    uint8_t require_psk;
     ABoxEnrollmentState state;
 } ABoxEnrollment;
 
@@ -61,6 +64,8 @@ int ABoxEnrollment_Init(ABoxEnrollment *enrollment, const ABoxEnrollmentPort *po
  * to profile 1 for existing products. */
 int ABoxEnrollment_SetExpectedTlsProfile(ABoxEnrollment *enrollment, uint8_t profile_id);
 void ABoxEnrollment_Poll(ABoxEnrollment *enrollment, uint32_t now);
+/* Opt in per product. Legacy products retain their existing CA policy. */
+int ABoxEnrollment_RequirePsk(ABoxEnrollment *enrollment);
 void ABoxEnrollment_OnHttp(ABoxEnrollment *enrollment, uint16_t status,
                            size_t response_length, int cleanup_ok, uint32_t now);
 void ABoxEnrollment_TrialResult(ABoxEnrollment *enrollment, int saved_and_read_back,

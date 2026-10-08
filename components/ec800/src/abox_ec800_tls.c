@@ -45,9 +45,11 @@ int ABoxEc800Tls_Prepare(ABoxEc800Tls *t, ABoxTlsLease l,
     if (!s || !p || !ABoxTlsCredentials_Valid(&p->credentials) ||
         (p->credentials.mode == ABOX_TLS_AUTH_CA &&
          (!p->ca_verified || !p->time_valid || !p->ca_revision ||
-          !ABoxEc800Ufs_PathValid(p->ca_file))) || !timeout || timeout > INT32_MAX ||
+          !ABoxEc800Ufs_PathValid(p->ca_file) ||
+          (p->ca_ciphersuite && p->ca_ciphersuite != 0x009C && p->ca_ciphersuite != 0xC02B))) || !timeout || timeout > INT32_MAX ||
         s->status != ABOX_ASYNC_IDLE || s->pins) return 0;
     s->auth_mode = p->credentials.mode;
+    s->ca_ciphersuite = p->ca_ciphersuite ? p->ca_ciphersuite : 0x009C;
     if (s->auth_mode == ABOX_TLS_AUTH_PSK) {
         memcpy(s->psk.identity, p->credentials.identity, sizeof(s->psk.identity));
         memcpy(s->psk.secret, p->credentials.secret, sizeof(s->psk.secret));
@@ -106,8 +108,8 @@ void ABoxEc800Tls_Poll(ABoxEc800Tls *t, uint32_t now)
         case 7: snprintf(command, sizeof(command), "AT+QSSLCFG=\"cacert\",%u,\"%s\"", id, s->ca_file); break;
         /* EC800 rejects an empty PSK. Select a certificate-only suite instead
          * of enabling all suites with a retained PSK in a reused context.
-         * Existing ABox CA endpoints use RSA certificates. */
-        default: snprintf(command, sizeof(command), "AT+QSSLCFG=\"ciphersuite\",%u,0x009C", id); break;
+         * RSA remains the default; product MQTT may select an ECDSA suite. */
+        default: snprintf(command, sizeof(command), "AT+QSSLCFG=\"ciphersuite\",%u,0x%04X", id, s->ca_ciphersuite); break;
         }
         }
         /* Rejected enqueue is retried until the overall deadline. */

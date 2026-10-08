@@ -82,6 +82,7 @@ typedef struct {
       subscribe_timeout_ms;
   const char *ca_file;
   uint32_t ca_revision;
+  uint16_t ca_ciphersuite;
   uint8_t plain_client, tls_client, tls_context, tls_profile_id,
       supported_tls_context_mask;
   /* Opt in when modem TLS context capability must be observed at runtime.

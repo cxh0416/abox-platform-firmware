@@ -62,6 +62,7 @@ int main(void)
            standard.connect_timeout_ms == 60000U &&
            standard.subscribe_timeout_ms == 60000U);
     assert(strcmp(standard.ca_file, "UFS:ota_ca.pem") == 0);
+    assert(standard.ca_ciphersuite == 0U);
     Fixture f = {0};
     ABoxEc800At at;
     ABoxEc800AtPort at_port = {0};
@@ -174,6 +175,7 @@ int main(void)
         uint32_t now;
         at_port.context = &tls_fixture;
         port.user = &tls_fixture;
+        options.ca_ciphersuite = 0xC02B;
         assert(ABoxEc800At_Init(&tls_at, &at_port));
         assert(ABoxMqttRuntime_Init(&tls_runtime, &tls_at, &port, &options,
                                     &tls_config, 0U));
@@ -193,6 +195,7 @@ int main(void)
         assert(ABoxMqttRuntime_IsReady(&tls_runtime));
         assert(ABoxMqttRuntime_IsTlsActive(&tls_runtime));
         assert(tls_runtime.lease.generation != 0U);
+        assert(tls_runtime.tls.slots[2].ca_ciphersuite == 0xC02B);
         assert(ABoxMqttRuntime_StopFirst(&tls_runtime, now++) == 0);
         for (; now < 120U && ABoxMqttRuntime_StopFirst(&tls_runtime, now) == 0; ++now) {
             tls_fixture.now = now;

@@ -11,6 +11,74 @@ static int submit(ABoxEnrollmentEc800Http *h, const char *command, uint32_t time
                              timeout, command_done, h);
 }
 
+static int ca_submit(ABoxEnrollmentEc800Http *h, ABoxEnrollmentHttpState state,
+                     const char *format, uint32_t value)
+{
+    h->state = state;
+    if (state == ABOX_ENROLL_CA_READ)
+        snprintf(h->command, sizeof(h->command), format, (unsigned long)h->ca_handle, (unsigned long)value);
+    else if (state == ABOX_ENROLL_CA_CLOSE)
+        snprintf(h->command, sizeof(h->command), format, (unsigned long)h->ca_handle);
+    else if (state == ABOX_ENROLL_CA_UPLOAD)
+        snprintf(h->command, sizeof(h->command), format, h->ca_file, (unsigned long)h->ca_length);
+    else snprintf(h->command, sizeof(h->command), format, h->ca_file);
+    if (submit(h, h->command, 30000U)) return 1;
+    h->blocked = 1U;
+    h->state = ABOX_ENROLL_HTTP_IDLE;
+    return 0;
+}
+
+static void ca_done(ABoxEnrollmentEc800Http *h, ABoxEc800Result r)
+{
+    if (r != ABOX_EC800_RESULT_OK && h->state != ABOX_ENROLL_CA_LIST &&
+        h->state != ABOX_ENROLL_CA_DELETE) {
+        h->blocked = 1U;
+        h->state = ABOX_ENROLL_HTTP_IDLE;
+        /* A timeout with an open file/raw owner requires physical recovery. */
+        if (h->ca_handle_valid) ABoxEc800At_Quarantine(h->at);
+        return;
+    }
+    switch (h->state) {
+    case ABOX_ENROLL_CA_LIST:
+        if (r == ABOX_EC800_RESULT_OK && h->ca_match)
+            ca_submit(h, ABOX_ENROLL_CA_OPEN, "AT+QFOPEN=\"%s\",2", 0);
+        else if (h->ca_uploaded) {
+            h->blocked = 1U; h->state = ABOX_ENROLL_HTTP_IDLE;
+        }
+        else ca_submit(h, ABOX_ENROLL_CA_DELETE, "AT+QFDEL=\"%s\"", 0);
+        break;
+    case ABOX_ENROLL_CA_OPEN:
+        if (!h->ca_handle_valid) { h->blocked = 1U; h->state = ABOX_ENROLL_HTTP_IDLE; break; }
+        h->ca_offset = 0; h->ca_match = 1;
+        ca_submit(h, ABOX_ENROLL_CA_READ, "AT+QFREAD=%lu,%lu",
+                  h->ca_length > 1024U ? 1024U : h->ca_length);
+        break;
+    case ABOX_ENROLL_CA_READ:
+        if (h->ca_offset < h->ca_length && h->ca_match) {
+            uint32_t n = h->ca_length - h->ca_offset;
+            ca_submit(h, ABOX_ENROLL_CA_READ, "AT+QFREAD=%lu,%lu", n > 1024U ? 1024U : n);
+        } else ca_submit(h, ABOX_ENROLL_CA_CLOSE, "AT+QFCLOSE=%lu", 0);
+        break;
+    case ABOX_ENROLL_CA_CLOSE:
+        h->ca_handle_valid = 0;
+        if (h->ca_match && h->ca_offset == h->ca_length) {
+            h->ca_verified = 1;
+            h->state = ABOX_ENROLL_HTTP_IDLE;
+        } else if (!h->ca_uploaded)
+            ca_submit(h, ABOX_ENROLL_CA_DELETE, "AT+QFDEL=\"%s\"", 0);
+        else { h->blocked = 1U; h->state = ABOX_ENROLL_HTTP_IDLE; }
+        break;
+    case ABOX_ENROLL_CA_DELETE:
+        ca_submit(h, ABOX_ENROLL_CA_UPLOAD, "AT+QFUPL=\"%s\",%lu,30", 0);
+        break;
+    case ABOX_ENROLL_CA_UPLOAD:
+        h->ca_uploaded = 1; h->ca_match = 0;
+        ca_submit(h, ABOX_ENROLL_CA_LIST, "AT+QFLST=\"%s\"", 0);
+        break;
+    default: break;
+    }
+}
+
 static void finish(ABoxEnrollmentEc800Http *h, int clean)
 {
     ABoxEnrollmentHttpDone done = h->done;
@@ -43,6 +111,7 @@ static void command_done(ABoxEc800Result result, void *user)
     ABoxEnrollmentEc800Http *h = user;
     int count;
     if (!h || h->state == ABOX_ENROLL_HTTP_IDLE) return;
+    if (h->state >= ABOX_ENROLL_CA_LIST) { ca_done(h, result); return; }
     if (h->state == ABOX_ENROLL_HTTP_STOP) {
         finish(h, result == ABOX_EC800_RESULT_OK);
         return;
@@ -76,6 +145,27 @@ static void command_done(ABoxEc800Result result, void *user)
         if (!submit(h, "AT+QSSLCFG=\"ignorelocaltime\",1,0", 5000U)) stop_http(h);
         break;
     case ABOX_ENROLL_HTTP_TLS_TIME:
+        if (!h->ca_pem) {
+            h->state = ABOX_ENROLL_HTTP_TLS_CIPHER;
+            command_done(ABOX_EC800_RESULT_OK, h);
+            break;
+        }
+        h->state = ABOX_ENROLL_HTTP_TLS_ITEMS;
+        if (!submit(h, "AT+QSSLCFG=\"ignorecertitem\",1,0", 5000U)) stop_http(h);
+        break;
+    case ABOX_ENROLL_HTTP_TLS_ITEMS:
+        h->state = ABOX_ENROLL_HTTP_TLS_SIGNATURE;
+        if (!submit(h, "AT+QSSLCFG=\"ignoreinvalidcertsign\",1,0", 5000U)) stop_http(h);
+        break;
+    case ABOX_ENROLL_HTTP_TLS_SIGNATURE:
+        h->state = ABOX_ENROLL_HTTP_TLS_CHAIN;
+        if (!submit(h, "AT+QSSLCFG=\"ignoremulticertchainverify\",1,0", 5000U)) stop_http(h);
+        break;
+    case ABOX_ENROLL_HTTP_TLS_CHAIN:
+        h->state = ABOX_ENROLL_HTTP_TLS_CIPHER;
+        if (!submit(h, "AT+QSSLCFG=\"ciphersuite\",1,0x009C", 5000U)) stop_http(h);
+        break;
+    case ABOX_ENROLL_HTTP_TLS_CIPHER:
         count = snprintf(h->command, sizeof(h->command),
                          "AT+QSSLCFG=\"cacert\",1,\"%s\"", h->ca_file);
         if (count < 0 || (size_t)count >= sizeof(h->command)) { stop_http(h); break; }
@@ -140,6 +230,12 @@ static void on_event(ABoxEc800Event event, const uint8_t *data,
     unsigned long result, status, size;
     if (!h || h->state == ABOX_ENROLL_HTTP_IDLE || !data) return;
     if (event == ABOX_EC800_EVENT_RAW) {
+        if (h->state == ABOX_ENROLL_CA_READ) {
+            if (length > h->ca_length - h->ca_offset ||
+                memcmp(data, h->ca_pem + h->ca_offset, length)) h->ca_match = 0;
+            if (length <= h->ca_length - h->ca_offset) h->ca_offset += length;
+            return;
+        }
         if (h->state != ABOX_ENROLL_HTTP_READ ||
             length > h->response_capacity - 1U - h->response_length) {
             h->overflow = 1U;
@@ -153,6 +249,27 @@ static void on_event(ABoxEc800Event event, const uint8_t *data,
     if (length >= sizeof(line)) return;
     memcpy(line, data, length);
     line[length] = '\0';
+    if (h->state >= ABOX_ENROLL_CA_LIST) {
+        char name[64]; unsigned long n;
+        if (h->state == ABOX_ENROLL_CA_LIST &&
+            sscanf(line, "+QFLST: \"%63[^\"]\",%lu", name, &n) == 2) {
+            const char *expected = h->ca_file + (strncmp(h->ca_file, "UFS:", 4) ? 0 : 4);
+            const char *actual = name + (strncmp(name, "UFS:", 4) ? 0 : 4);
+            h->ca_match = (uint8_t)(!strcmp(actual, expected) && n == h->ca_length);
+        } else if (h->state == ABOX_ENROLL_CA_OPEN && sscanf(line, "+QFOPEN: %lu", &n) == 1) {
+            h->ca_handle = (uint32_t)n; h->ca_handle_valid = 1;
+        } else if (h->state == ABOX_ENROLL_CA_READ && sscanf(line, "CONNECT %lu", &n) == 1) {
+            if (!n || n > 1024U || n > h->ca_length - h->ca_offset ||
+                !ABoxEc800At_BeginRaw(h->at, h->owner, (uint32_t)n)) {
+                h->ca_match = 0; h->blocked = 1U;
+                ABoxEc800At_Quarantine(h->at);
+            }
+        } else if (h->state == ABOX_ENROLL_CA_UPLOAD && !strcmp(line, "CONNECT")) {
+            if (!ABoxEc800At_SendPayload(h->at, h->owner, h->ca_pem, (uint16_t)h->ca_length))
+                h->blocked = 1U;
+        }
+        return;
+    }
     if (h->state == ABOX_ENROLL_HTTP_PDP_QUERY) {
         unsigned context_id, active;
         if (sscanf(line, "+QIACT: %u,%u", &context_id, &active) == 2 && context_id == 1U)
@@ -186,7 +303,24 @@ int ABoxEnrollmentEc800Http_Init(ABoxEnrollmentEc800Http *h, ABoxEc800At *at,
 }
 
 int ABoxEnrollmentEc800Http_Ready(const ABoxEnrollmentEc800Http *h)
-{ return h && !h->blocked && h->state == ABOX_ENROLL_HTTP_IDLE && !ABoxEc800At_IsBusy(h->at); }
+{ return h && !h->blocked && (!h->ca_pem || h->ca_verified) &&
+         h->state == ABOX_ENROLL_HTTP_IDLE && !ABoxEc800At_IsBusy(h->at); }
+
+int ABoxEnrollmentEc800Http_SetCaPem(ABoxEnrollmentEc800Http *h, const uint8_t *pem, uint32_t n)
+{
+    if (!h || h->state != ABOX_ENROLL_HTTP_IDLE || !pem || !n || n > UINT16_MAX ||
+        !strcmp(h->ca_file, "UFS:ota_ca.pem") || !strcmp(h->ca_file, "ota_ca.pem")) return 0;
+    h->ca_pem = pem; h->ca_length = n; h->ca_verified = 0;
+    return 1;
+}
+
+void ABoxEnrollmentEc800Http_PrepareCa(ABoxEnrollmentEc800Http *h)
+{
+    if (!h || !h->ca_pem || h->ca_verified || h->blocked ||
+        h->state != ABOX_ENROLL_HTTP_IDLE || ABoxEc800At_IsBusy(h->at)) return;
+    h->ca_match = 0; h->ca_uploaded = 0; h->ca_handle_valid = 0;
+    ca_submit(h, ABOX_ENROLL_CA_LIST, "AT+QFLST=\"%s\"", 0);
+}
 
 int ABoxEnrollmentEc800Http_Post(ABoxEnrollmentEc800Http *h,
                                  const char *url, const char *body,
@@ -223,4 +357,5 @@ void ABoxEnrollmentEc800Http_AfterModemReset(ABoxEnrollmentEc800Http *h)
     h->blocked = 0U;
     h->cancelling = 0U;
     h->url = NULL; h->body = NULL; h->response = NULL;
+    h->ca_verified = 0; h->ca_handle_valid = 0; h->ca_uploaded = 0;
 }

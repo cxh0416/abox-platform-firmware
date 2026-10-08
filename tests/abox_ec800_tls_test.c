@@ -137,5 +137,18 @@ int main(void)
         CHECK(!ABoxTlsSecretRecord_Decode(&record, &decoded) && decoded.mode == 0xff);
     }
     puts("TLS: reservation, ownership, pins, stale leases, reset, deadline and per-step failures passed");
+    p = mock_port(&m);
+    CHECK(ABoxEc800Tls_Init(&t, &p, 4));
+    CHECK(ABoxEc800Tls_Acquire(&t, 2, 16, &l));
+    memset(&profile, 0, sizeof(profile));
+    profile.ca_file = "UFS:ota_ca.pem";
+    profile.ca_revision = profile.ca_verified = profile.time_valid = 1;
+    profile.ca_ciphersuite = 0xFFFF;
+    CHECK(!ABoxEc800Tls_Prepare(&t, l, &profile, 0, 100));
+    profile.ca_ciphersuite = 0xC02B;
+    CHECK(ABoxEc800Tls_Prepare(&t, l, &profile, 0, 100));
+    for (i = 0; i < 10; ++i) ABoxEc800Tls_Poll(&t, i);
+    CHECK(ABoxEc800Tls_Status(&t, l) == ABOX_ASYNC_OK);
+    CHECK(!strcmp(m.commands[8], "AT+QSSLCFG=\"ciphersuite\",2,0xC02B"));
     return 0;
 }

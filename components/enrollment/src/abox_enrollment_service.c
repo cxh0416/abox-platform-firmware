@@ -78,6 +78,8 @@ void ABoxEnrollmentService_Poll(ABoxEnrollmentService *s)
     }
     if (!s->port.needs_enrollment(s->port.user)) return;
     s->port.mqtt_pause(s->port.user, 1U);
+    if (s->port.network_ready(s->port.user))
+        ABoxEnrollmentEc800Http_PrepareCa(&s->http);
     ABoxEnrollment_Poll(&s->enrollment, s->port.now_ms(s->port.user));
 }
 ABoxEnrollmentState ABoxEnrollmentService_State(const ABoxEnrollmentService *s)

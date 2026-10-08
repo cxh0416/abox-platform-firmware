@@ -32,6 +32,8 @@ static int safe_text(const char *value, size_t max_length, const char *extra)
 
 static void schedule(ABoxEnrollment *e, uint32_t now, uint32_t delay)
 {
+    memset(e->buffers.response, 0, e->buffers.response_size);
+    memset(e->buffers.body, 0, e->buffers.body_size);
     e->retry_started = now;
     e->retry_delay = delay;
     e->due = 0U;
@@ -42,7 +44,20 @@ static void forget_request(ABoxEnrollment *e)
 {
     e->have_request = 0U;
     e->buffers.request_id[0] = '\0';
-    e->buffers.poll_token[0] = '\0';
+    memset(e->buffers.poll_token, 0, e->buffers.poll_token_size);
+}
+
+static void clear_reply(ABoxEnrollment *e, cJSON *root)
+{
+    cJSON *mqtt = cJSON_GetObjectItemCaseSensitive(root, "mqtt");
+    cJSON *password = cJSON_GetObjectItemCaseSensitive(mqtt, "password");
+    cJSON *secret = cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(mqtt, "psk"), "secret");
+    cJSON *token = cJSON_GetObjectItemCaseSensitive(root, "pollToken");
+    if (cJSON_IsString(password)) memset(password->valuestring, 0, strlen(password->valuestring));
+    if (cJSON_IsString(secret)) memset(secret->valuestring, 0, strlen(secret->valuestring));
+    if (cJSON_IsString(token)) memset(token->valuestring, 0, strlen(token->valuestring));
+    memset(e->buffers.response, 0, e->buffers.response_size);
+    cJSON_Delete(root);
 }
 
 int ABoxEnrollment_Init(ABoxEnrollment *e, const ABoxEnrollmentPort *port,
@@ -78,6 +93,13 @@ int ABoxEnrollment_SetExpectedTlsProfile(ABoxEnrollment *e, uint8_t profile_id)
     return 1;
 }
 
+int ABoxEnrollment_RequirePsk(ABoxEnrollment *e)
+{
+    if (!e || !e->origin || e->have_request || e->state != ABOX_ENROLLMENT_WAITING) return 0;
+    e->require_psk = 1U;
+    return 1;
+}
+
 void ABoxEnrollment_Poll(ABoxEnrollment *e, uint32_t now)
 {
     ABoxEnrollmentIdentity id = {0};
@@ -106,8 +128,9 @@ void ABoxEnrollment_Poll(ABoxEnrollment *e, uint32_t now)
         count = snprintf(e->buffers.body, e->buffers.body_size,
                          "{\"uid\":\"%s\",\"iccid\":\"%s\",\"vid\":\"%s\","
                          "\"hardwareContract\":\"%s\",\"bootVersion\":\"%s\","
-                         "\"appVersion\":\"%s\"}", id.uid, id.iccid, id.vid,
-                         id.hardware_contract, id.boot_version, id.app_version);
+                         "\"appVersion\":\"%s\"%s}", id.uid, id.iccid, id.vid,
+                         id.hardware_contract, id.boot_version, id.app_version,
+                         e->require_psk ? ",\"mqttAuth\":\"psk\"" : "");
     }
     if (count < 0 || (size_t)count >= e->buffers.body_size) return;
     if (e->port.post(e->port.user, e->buffers.url, e->buffers.body,
@@ -128,7 +151,7 @@ static uint32_t retry_after(const cJSON *root)
 }
 
 static int credential_parse(ABoxEnrollmentCredential *out, const cJSON *root,
-                            uint8_t expected_tls_profile_id)
+                            uint8_t expected_tls_profile_id, uint8_t require_psk)
 {
     char expected_profile[4];
     const cJSON *mqtt = cJSON_GetObjectItemCaseSensitive(root, "mqtt");
@@ -139,6 +162,24 @@ static int credential_parse(ABoxEnrollmentCredential *out, const cJSON *root,
     const cJSON *password = cJSON_GetObjectItemCaseSensitive(mqtt, "password");
     const cJSON *tls = cJSON_GetObjectItemCaseSensitive(mqtt, "tlsEnabled");
     const cJSON *profile = cJSON_GetObjectItemCaseSensitive(mqtt, "tlsProfileId");
+    const cJSON *auth = cJSON_GetObjectItemCaseSensitive(mqtt, "authMode");
+    const cJSON *psk = cJSON_GetObjectItemCaseSensitive(mqtt, "psk");
+    memset(out, 0, sizeof(*out));
+    if (require_psk || psk || auth) {
+        const cJSON *identity = cJSON_GetObjectItemCaseSensitive(psk, "identity");
+        const cJSON *secret = cJSON_GetObjectItemCaseSensitive(psk, "secret");
+        const cJSON *generation = cJSON_GetObjectItemCaseSensitive(psk, "generation");
+        if (!cJSON_IsString(auth) || strcmp(auth->valuestring, "psk") || !cJSON_IsTrue(tls) ||
+            !cJSON_IsString(identity) || !cJSON_IsString(secret) ||
+            !cJSON_IsNumber(generation) || generation->valuedouble < 1.0 ||
+            generation->valuedouble > 4294967295.0 ||
+            generation->valuedouble != (uint32_t)generation->valuedouble ||
+            !text_copy(out->tls_credentials.identity, sizeof(out->tls_credentials.identity), identity->valuestring) ||
+            !text_copy(out->tls_credentials.secret, sizeof(out->tls_credentials.secret), secret->valuestring)) return 0;
+        out->tls_credentials.mode = ABOX_TLS_AUTH_PSK;
+        out->tls_credentials.generation = (uint32_t)generation->valuedouble;
+        if (!ABoxTlsCredentials_Valid(&out->tls_credentials)) return 0;
+    }
     if (!cJSON_IsString(vid) || !cJSON_IsString(host) || !cJSON_IsNumber(port) ||
         !cJSON_IsString(user) || !cJSON_IsString(password) ||
         !(cJSON_IsTrue(tls) || cJSON_IsFalse(tls)) ||
@@ -211,18 +252,21 @@ void ABoxEnrollment_OnHttp(ABoxEnrollment *e, uint16_t status,
     } else if (e->have_request && status == 202U) {
         delay = retry_after(root);
     } else if (e->have_request && status == 200U) {
+        const cJSON *binding = cJSON_GetObjectItemCaseSensitive(root, "requestId");
         item = cJSON_GetObjectItemCaseSensitive(root, "status");
-        if (cJSON_IsString(item) && !strcmp(item->valuestring, "approved") &&
-            credential_parse(&e->credential, root, e->expected_tls_profile_id) &&
+        if ((!e->require_psk || (cJSON_IsString(binding) &&
+             !strcmp(binding->valuestring, e->buffers.request_id))) &&
+            cJSON_IsString(item) && !strcmp(item->valuestring, "approved") &&
+            credential_parse(&e->credential, root, e->expected_tls_profile_id, e->require_psk) &&
             e->port.start_trial(e->port.user, &e->credential)) {
             e->state = ABOX_ENROLLMENT_TRIAL;
             e->waiting_trial = 1U;
-            cJSON_Delete(root);
+            clear_reply(e, root);
             return;
         }
         memset(&e->credential, 0, sizeof(e->credential));
     }
-    cJSON_Delete(root);
+    clear_reply(e, root);
     schedule(e, now, delay);
 }
 

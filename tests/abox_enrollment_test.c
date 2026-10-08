@@ -133,6 +133,39 @@ int main(void)
           "\"tlsEnabled\":true,\"tlsProfileId\":\"0\"}}", 1, 121003U);
     CHECK(e.state == ABOX_ENROLLMENT_TRIAL && m.trials == 3U);
     CHECK(m.last_credential.tls_enabled && m.last_credential.tls_profile_id == 0U);
-    puts("ABox enrollment request, polling, cleanup, retry, trial and cancellation passed");
+    /* PSK bootstrap refuses legacy downgrade and an approval for another
+     * request. The reusable token remains until durable trial completion. */
+    CHECK(ABoxEnrollment_Init(&e, &port, &buffers, "https://enroll.example:20444"));
+    CHECK(ABoxEnrollment_RequirePsk(&e));
+    CHECK(ABoxEnrollment_SetExpectedTlsProfile(&e, 0U));
+    ABoxEnrollment_Poll(&e, 0U);
+    CHECK(strstr(m.last_body, "\"mqttAuth\":\"psk\""));
+    reply(&e, response, 201,
+          "{\"requestId\":\"psk-1\",\"pollToken\":\"token-psk\",\"retryAfterSec\":1}", 1, 1U);
+    ABoxEnrollment_Poll(&e, 1001U);
+    reply(&e, response, 200, approved, 1, 1002U);
+    CHECK(m.trials == 3U && e.have_request);
+    const char *psk_approved = "{\"requestId\":\"psk-1\",\"status\":\"approved\",\"vid\":\"CANON001\","
+        "\"mqtt\":{\"host\":\"mqtt.example\",\"port\":26443,\"username\":\"per_device\","
+        "\"password\":\"fixture_password\",\"tlsEnabled\":true,\"tlsProfileId\":\"0\",\"authMode\":\"psk\","
+        "\"psk\":{\"identity\":\"fixture.g1\",\"secret\":\"abcdefghijklmnopqrstuvwxyz012345\",\"generation\":1}}}";
+    ABoxEnrollment_Poll(&e, 121002U);
+    char replaced[768]; strcpy(replaced, psk_approved);
+    memcpy(strstr(replaced, "psk-1"), "psk-2", 5U);
+    reply(&e, response, 200, replaced, 1, 121003U);
+    CHECK(m.trials == 3U && !e.credential.tls_credentials.secret[0]);
+    ABoxEnrollment_Poll(&e, 241003U);
+    reply(&e, response, 200, psk_approved, 1, 241004U);
+    CHECK(e.state == ABOX_ENROLLMENT_TRIAL && m.trials == 4U);
+    CHECK(m.last_credential.tls_credentials.mode == ABOX_TLS_AUTH_PSK);
+    CHECK(m.last_credential.tls_credentials.generation == 1U);
+    CHECK(!response[0]);
+    ABoxEnrollment_TrialResult(&e, 0, 241005U);
+    CHECK(e.have_request && !e.credential.tls_credentials.secret[0]);
+    ABoxEnrollment_Poll(&e, 361005U);
+    reply(&e, response, 200, psk_approved, 1, 361006U);
+    ABoxEnrollment_TrialResult(&e, 1, 361007U);
+    CHECK(e.state == ABOX_ENROLLMENT_COMPLETE && !token[0]);
+    puts("ABox enrollment legacy and PSK request binding, downgrade refusal and trial cleanup passed");
     return 0;
 }

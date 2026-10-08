@@ -96,6 +96,7 @@ static void prepare_tls(ABoxMqttRuntime *r, uint32_t now) {
   if (p.credentials.mode == ABOX_TLS_AUTH_CA) {
     p.ca_file = r->options.ca_file;
     p.ca_revision = r->options.ca_revision;
+    p.ca_ciphersuite = r->options.ca_ciphersuite;
     p.ca_verified = r->callbacks.ca_ready(r->callbacks.user);
     p.time_valid = r->callbacks.time_valid(r->callbacks.user);
   }

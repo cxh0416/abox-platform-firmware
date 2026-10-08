@@ -28,11 +28,14 @@ typedef struct {
     uint8_t ca_verified;
     uint8_t time_valid;
     ABoxTlsCredentials credentials;
+    /* Zero preserves the legacy RSA suite. Product MQTT may select ECDSA. */
+    uint16_t ca_ciphersuite;
 } ABoxTlsProfile;
 typedef struct {
     uint64_t generation, operation;
     uint32_t owner, revision, started, timeout;
     uint16_t pins;
+    uint16_t ca_ciphersuite;
     uint8_t step : 7;
     uint8_t auth_mode : 1;
     uint8_t waiting;

@@ -6,7 +6,7 @@
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #x); exit(1); } } while (0)
 
 static uint32_t tick(void *context) { (void)context; return 0U; }
-static char sent[256];
+static char sent[2048];
 static int write_bytes(void *context, const uint8_t *data, uint16_t length, uint32_t timeout)
 {
     (void)context; (void)timeout;
@@ -78,6 +78,38 @@ int main(void)
     CHECK(!ABoxEnrollmentEc800Http_Ready(&http));
     ABoxEnrollmentEc800Http_AfterModemReset(&http);
     CHECK(ABoxEnrollmentEc800Http_Ready(&http));
-    puts("EC800 HTTPS POST completed read and next request passed");
+    uint8_t pem[1200]; memset(pem, 'A', sizeof(pem));
+    CHECK(!ABoxEnrollmentEc800Http_SetCaPem(&http, pem, sizeof(pem)));
+    CHECK(ABoxEc800At_Init(&at, &at_port));
+    CHECK(ABoxEnrollmentEc800Http_Init(&http, &at, ABOX_EC800_OWNER_PRODUCT_BASE + 2U,
+                                       "UFS:enrollment_ca_v1.pem", done, &result));
+    CHECK(ABoxEnrollmentEc800Http_SetCaPem(&http, pem, sizeof(pem)));
+    CHECK(!ABoxEnrollmentEc800Http_Ready(&http));
+    ABoxEnrollmentEc800Http_PrepareCa(&http);
+    ABoxEc800At_Task(&at); CHECK(strstr(sent, "QFLST")); feed(&at, "ERROR\r\n");
+    ABoxEc800At_Task(&at); CHECK(strstr(sent, "QFDEL")); feed(&at, "ERROR\r\n");
+    ABoxEc800At_Task(&at); CHECK(strstr(sent, "QFUPL")); feed(&at, "CONNECT\r\n");
+    CHECK(strlen(sent) == sizeof(pem)); feed(&at, "+QFUPL: 1200,0\r\nOK\r\n");
+    ABoxEc800At_Task(&at); CHECK(strstr(sent, "QFLST"));
+    feed(&at, "+QFLST: \"enrollment_ca_v1.pem\",1200\r\nOK\r\n");
+    ABoxEc800At_Task(&at); CHECK(strstr(sent, "QFOPEN")); feed(&at, "+QFOPEN: 1\r\nOK\r\n");
+    ABoxEc800At_Task(&at); CHECK(strstr(sent, "QFREAD=1,1024")); feed(&at, "CONNECT 1024\r\n");
+    ABoxEc800At_Feed(&at, pem, 1024); feed(&at, "\r\nOK\r\n");
+    ABoxEc800At_Task(&at); CHECK(strstr(sent, "QFREAD=1,176")); feed(&at, "CONNECT 176\r\n");
+    ABoxEc800At_Feed(&at, pem + 1024, 176); feed(&at, "\r\nOK\r\n");
+    ABoxEc800At_Task(&at); CHECK(strstr(sent, "QFCLOSE=1")); feed(&at, "OK\r\n");
+    CHECK(ABoxEnrollmentEc800Http_Ready(&http));
+    ABoxEnrollmentEc800Http_AfterModemReset(&http);
+    CHECK(!ABoxEnrollmentEc800Http_Ready(&http));
+    ABoxEnrollmentEc800Http_PrepareCa(&http);
+    ABoxEc800At_Task(&at); feed(&at, "+QFLST: \"enrollment_ca_v1.pem\",1200\r\nOK\r\n");
+    ABoxEc800At_Task(&at); feed(&at, "+QFOPEN: 2\r\nOK\r\n");
+    ABoxEc800At_Task(&at); feed(&at, "CONNECT 1024\r\n");
+    uint8_t corrupt[1024]; memcpy(corrupt, pem, sizeof(corrupt)); corrupt[0] = 'B';
+    ABoxEc800At_Feed(&at, corrupt, sizeof(corrupt)); feed(&at, "\r\nOK\r\n");
+    ABoxEc800At_Task(&at); CHECK(strstr(sent, "QFCLOSE=2")); feed(&at, "OK\r\n");
+    ABoxEc800At_Task(&at); CHECK(strstr(sent, "QFDEL"));
+    CHECK(!ABoxEnrollmentEc800Http_Ready(&http));
+    puts("EC800 HTTPS cleanup, dedicated CA upload/readback, reboot verification and corruption repair passed");
     return 0;
 }
