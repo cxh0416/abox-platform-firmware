@@ -60,6 +60,8 @@ typedef struct {
     int (*write_led)(void *context, ABoxBoardIoLed led, uint8_t level);
     uint32_t (*enter_critical)(void *context);
     void (*exit_critical)(void *context, uint32_t key);
+    /* Optional LED-only preparation. Must not touch inputs or power outputs. */
+    int (*prepare_leds)(void *context, uint8_t led_mask);
 } ABoxBoardIoPort;
 
 typedef struct {
@@ -81,12 +83,25 @@ typedef struct {
     uint8_t led_mode[ABOX_BOARD_IO_LED_COUNT];
     uint8_t led_level[ABOX_BOARD_IO_LED_COUNT];
     uint8_t ready;
+    uint8_t full_io;
+    uint8_t managed_leds;
+    uint32_t led_on_ms[ABOX_BOARD_IO_LED_COUNT];
+    uint32_t led_off_ms[ABOX_BOARD_IO_LED_COUNT];
+    uint32_t led_pause_ms[ABOX_BOARD_IO_LED_COUNT];
+    uint8_t led_pulses[ABOX_BOARD_IO_LED_COUNT];
 } ABoxBoardIo;
 
 /* allowed_outputs uses output enum bit positions. Disabled outputs may still
  * be commanded off. A successful output write confirms only the MCU latch. */
 ABoxBoardIoResult ABoxBoardIo_Init(ABoxBoardIo *io, const ABoxBoardIoPort *port,
                                    uint8_t allowed_outputs);
+/* Own only the selected LEDs. Output/input APIs remain NOT_READY. */
+ABoxBoardIoResult ABoxBoardIo_LedsInit(ABoxBoardIo *io, const ABoxBoardIoPort *port,
+                                      uint8_t led_mask);
+/* Repeated on/off pulses followed by pause; total cycle <= INT32_MAX.
+ * Calling with the same pattern preserves phase. Poll tolerates tick wrap. */
+ABoxBoardIoResult ABoxBoardIo_LedPattern(ABoxBoardIo *io, ABoxBoardIoLed led,
+    uint32_t on_ms, uint32_t off_ms, uint8_t pulses, uint32_t pause_ms, uint32_t now_ms);
 ABoxBoardIoResult ABoxBoardIo_OutputSet(ABoxBoardIo *io, ABoxBoardIoOutput output,
                                         uint8_t on);
 ABoxBoardIoResult ABoxBoardIo_OutputGet(ABoxBoardIo *io, ABoxBoardIoOutput output,

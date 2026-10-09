@@ -43,6 +43,14 @@ int main(void)
     gpio_a.ODR = 7U;
     gpio_b.ODR = 7U;
     gpio_c.ODR = 16U;
+    /* LED-only initialization does not even clock/configure A or C. */
+    assert(ABoxBoardIo_LedsInit(&io, port, 3U) == ABOX_BOARD_IO_OK);
+    assert(gpio_a.ODR == 7U && gpio_c.ODR == 16U && gpio_b.ODR == 4U);
+    assert(clocks[0] == 0 && clocks[2] == 0);
+    assert(output_config[0] == 0 && output_config[2] == 0 && output_config[1] == 3U);
+    assert(input_config[0] == 0 && input_config[1] == 0 && input_config[2] == 0);
+    ABoxBoardIo_Poll(&io, 1000U);
+    assert(gpio_a.ODR == 7U && gpio_c.ODR == 16U && gpio_b.ODR == 4U);
     assert(ABoxBoardIo_Init(&io, port, 0x0fU) == ABOX_BOARD_IO_OK);
     assert(output_config[0] == 0x07U && output_config[1] == 0x07U && output_config[2] == 0x10U);
     assert(input_config[0] == 0xf0U && input_config[2] == 0x0fU);

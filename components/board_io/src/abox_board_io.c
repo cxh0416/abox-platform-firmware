@@ -43,6 +43,23 @@ ABoxBoardIoResult ABoxBoardIo_Init(ABoxBoardIo *io, const ABoxBoardIoPort *port,
     }
     io->allowed_outputs = allowed_outputs;
     io->ready = 1U;
+    io->full_io = 1U;
+    io->managed_leds = 7U;
+    return ABOX_BOARD_IO_OK;
+}
+
+ABoxBoardIoResult ABoxBoardIo_LedsInit(ABoxBoardIo *io, const ABoxBoardIoPort *port,
+                                      uint8_t led_mask)
+{
+    if (!io) return ABOX_BOARD_IO_IO_FAILED;
+    memset(io, 0, sizeof(*io));
+    if (!port || !port->prepare_leds || !port->write_led ||
+        !port->enter_critical || !port->exit_critical || !led_mask ||
+        (led_mask & (uint8_t)~7U)) return ABOX_BOARD_IO_IO_FAILED;
+    io->port = port;
+    if (!port->prepare_leds(port->context, led_mask)) return ABOX_BOARD_IO_IO_FAILED;
+    io->managed_leds = led_mask;
+    io->ready = 1U;
     return ABOX_BOARD_IO_OK;
 }
 
@@ -53,7 +70,7 @@ ABoxBoardIoResult ABoxBoardIo_OutputSet(ABoxBoardIo *io, ABoxBoardIoOutput outpu
     uint8_t level = 0U;
     ABoxBoardIoResult result;
     if (!valid_output(output)) return ABOX_BOARD_IO_INVALID_CHANNEL;
-    if (!io || !io->ready) return ABOX_BOARD_IO_NOT_READY;
+    if (!io || !io->ready || !io->full_io) return ABOX_BOARD_IO_NOT_READY;
     key = enter(io);
     if (on && !(io->allowed_outputs & (1U << output))) result = ABOX_BOARD_IO_DENIED;
     else if (!io->port->write_output(io->port->context, output, !!on)) {
@@ -76,7 +93,7 @@ ABoxBoardIoResult ABoxBoardIo_OutputGet(ABoxBoardIo *io, ABoxBoardIoOutput outpu
     uint32_t key;
     int ok;
     if (!valid_output(output) || !on) return ABOX_BOARD_IO_INVALID_CHANNEL;
-    if (!io || !io->ready) return ABOX_BOARD_IO_NOT_READY;
+    if (!io || !io->ready || !io->full_io) return ABOX_BOARD_IO_NOT_READY;
     key = enter(io);
     ok = io->port->read_output(io->port->context, output, on);
     leave(io, key);
@@ -87,7 +104,7 @@ ABoxBoardIoResult ABoxBoardIo_InputsGet(ABoxBoardIo *io, ABoxBoardIoInputs *inpu
 {
     uint32_t key;
     if (!inputs) return ABOX_BOARD_IO_IO_FAILED;
-    if (!io || !io->ready) return ABOX_BOARD_IO_NOT_READY;
+    if (!io || !io->ready || !io->full_io) return ABOX_BOARD_IO_NOT_READY;
     key = enter(io);
     *inputs = io->inputs;
     leave(io, key);
@@ -105,6 +122,7 @@ ABoxBoardIoResult ABoxBoardIo_LedSet(ABoxBoardIo *io, ABoxBoardIoLed led,
         (mode == ABOX_BOARD_IO_LED_BLINK && (period_ms < 2U || period_ms > 0x7ffffffeU)))
         return ABOX_BOARD_IO_IO_FAILED;
     if (!io || !io->ready) return ABOX_BOARD_IO_NOT_READY;
+    if (!(io->managed_leds & (1U << led))) return ABOX_BOARD_IO_DENIED;
     level = mode == ABOX_BOARD_IO_LED_OFF ? 0U : 1U;
     key = enter(io);
     if (!io->port->write_led(io->port->context, led, level)) {
@@ -115,6 +133,38 @@ ABoxBoardIoResult ABoxBoardIo_LedSet(ABoxBoardIo *io, ABoxBoardIoLed led,
     io->led_level[led] = level;
     io->led_changed_at_ms[led] = now_ms;
     io->led_half_period_ms[led] = period_ms / 2U;
+    io->led_pulses[led] = 0U;
+    leave(io, key);
+    return ABOX_BOARD_IO_OK;
+}
+
+ABoxBoardIoResult ABoxBoardIo_LedPattern(ABoxBoardIo *io, ABoxBoardIoLed led,
+    uint32_t on_ms, uint32_t off_ms, uint8_t pulses, uint32_t pause_ms, uint32_t now_ms)
+{
+    uint32_t key;
+    uint64_t cycle = ((uint64_t)on_ms + off_ms) * pulses + pause_ms;
+    if (!valid_led(led)) return ABOX_BOARD_IO_INVALID_CHANNEL;
+    if (!on_ms || !off_ms || !pulses || cycle > 0x7fffffffU)
+        return ABOX_BOARD_IO_IO_FAILED;
+    if (!io || !io->ready) return ABOX_BOARD_IO_NOT_READY;
+    if (!(io->managed_leds & (1U << led))) return ABOX_BOARD_IO_DENIED;
+    key = enter(io);
+    if (io->led_pulses[led] == pulses && io->led_on_ms[led] == on_ms &&
+        io->led_off_ms[led] == off_ms && io->led_pause_ms[led] == pause_ms) {
+        leave(io, key);
+        return ABOX_BOARD_IO_OK;
+    }
+    if (!io->port->write_led(io->port->context, led, 1U)) {
+        leave(io, key);
+        return ABOX_BOARD_IO_IO_FAILED;
+    }
+    io->led_mode[led] = ABOX_BOARD_IO_LED_BLINK;
+    io->led_level[led] = 1U;
+    io->led_changed_at_ms[led] = now_ms;
+    io->led_on_ms[led] = on_ms;
+    io->led_off_ms[led] = off_ms;
+    io->led_pause_ms[led] = pause_ms;
+    io->led_pulses[led] = pulses;
     leave(io, key);
     return ABOX_BOARD_IO_OK;
 }
@@ -127,8 +177,8 @@ void ABoxBoardIo_Poll(ABoxBoardIo *io, uint32_t now_ms)
     uint32_t key;
     if (!io || !io->ready) return;
     key = enter(io);
-    io->inputs.sampled_at_ms = now_ms;
-    for (i = 0U; i < ABOX_BOARD_IO_INPUT_COUNT; ++i) {
+    if (io->full_io) io->inputs.sampled_at_ms = now_ms;
+    for (i = 0U; io->full_io && i < ABOX_BOARD_IO_INPUT_COUNT; ++i) {
         bit = (uint8_t)(1U << i);
         if (!io->port->read_input(io->port->context, (ABoxBoardIoInput)i, &level)) {
             io->inputs.valid_mask &= (uint8_t)~bit;
@@ -150,6 +200,20 @@ void ABoxBoardIo_Poll(ABoxBoardIo *io, uint32_t now_ms)
         }
     }
     for (i = 0U; i < ABOX_BOARD_IO_LED_COUNT; ++i) {
+        if (!(io->managed_leds & (1U << i))) continue;
+        if (io->led_pulses[i]) {
+            uint32_t span = io->led_on_ms[i] + io->led_off_ms[i];
+            uint32_t burst = span * io->led_pulses[i];
+            uint32_t cycle = burst + io->led_pause_ms[i];
+            uint32_t elapsed = now_ms - io->led_changed_at_ms[i];
+            uint32_t phase = elapsed % cycle;
+            io->led_changed_at_ms[i] += (elapsed / cycle) * cycle;
+            level = phase < burst && phase % span < io->led_on_ms[i];
+            if (level != io->led_level[i] &&
+                io->port->write_led(io->port->context, (ABoxBoardIoLed)i, level))
+                io->led_level[i] = level;
+            continue;
+        }
         if (io->led_mode[i] == ABOX_BOARD_IO_LED_BLINK &&
             (uint32_t)(now_ms - io->led_changed_at_ms[i]) >= io->led_half_period_ms[i]) {
             level = (uint8_t)!io->led_level[i];

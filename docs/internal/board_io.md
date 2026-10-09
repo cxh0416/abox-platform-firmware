@@ -34,3 +34,22 @@ LED 常亮、关闭或闪烁也由 `Poll` 推进，不在公共组件中定义�
 
 平台主机测试和 HAL 桩只验证映射与软件行为。电源负载、触点和光耦电气表现
 必须在实板上另行记录，不能用 MCU 锁存位或主机测试代替。
+
+
+## 产品仅接管 LED（2026-10-09）
+
+`ABoxBoardIo_LedsInit(io, ABoxBoardIoStm32_Port(), led_mask)` 只调用新增的
+`prepare_leds` 端口，STM32 实现仅使能 GPIOB，并配置/拉低掩码选中的 PB0/PB1/PB2。
+不初始化输入，不访问 PA0/PA1/PA2/PC4，不写未选中的 LED；该实例的 OutputSet/Get、
+InputsGet 返回 NOT_READY。整板 `ABoxBoardIo_Init`、SafeInit、允许输出掩码和普通闪烁
+行为保持原语义。端口新增可选尾字段，现有整板调用不需要提供它。
+
+`ABoxBoardIo_LedPattern(on_ms, off_ms, pulses, pause_ms, now_ms)` 支持非对称短亮、
+双闪/三闪后停顿；周期为 `(on+off)*pulses+pause`，校验总周期不超过 INT32_MAX。
+同参数重复调用不重新起相位，切换灯态立即重建相位。Poll 用无符号时间差处理回绕，
+迟到按相位定位，不执行无限补闪循环。业务意义仍属于产品，组件不引用 SIM/MQTT。
+
+清扫车只接管 LED1/2（mask=3），LED3 保留；不能调用整板初始化替代产品 GPIO 初始化。
+同一原理图的输入映射与产品已配置的逻辑通道名称不同：公共 IN1..4=PC3/PC2/PC1/PC0，
+IN5..8=PA7/PA6/PA5/PA4；清扫车 IO_IN1..4=PC3/PA5/PA6/PA7。本轮不改变这些输入。
+主机/HAL 桩验证电源输出保留、LED3 保留、GPIOA/C 不被 LED 初始化触碰，以及逐点脉冲时序。

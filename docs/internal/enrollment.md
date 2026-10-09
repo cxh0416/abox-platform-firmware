@@ -22,3 +22,21 @@ MQTT 试连共用 `ABoxMqttTrial`。已有配置切换使用 `Start` 并等待�
 
 主机测试覆盖请求复用、状态码、计时、响应边界、HTTP 清理门禁、首次试连以及恢复
 阻塞。它们不证明蜂窝网络、Broker、Flash 断电或产品业务数据已通过现场验收。
+
+
+## 清扫车 PSK 接入（2026-10-09，内部）
+
+清扫车复用送餐车 1.1.48 / 平台 d3e3f7a 的专用 CA HTTPS 首次引导，
+固定 `https://zxwl.ntiov.com:20444`、`UFS:enrollment_ca_v1.pem`，与 OTA CA 分离。
+产品 Init 调用 RequirePsk；清扫车 MQTT profile 为 1，送餐车仍为 0。
+
+首次使用 StartFirst；旧设备显式管理员 start_psk_enrollment 的 202 QoS1 确认后开始 HTTPS，
+审批取得完整 tls_credentials 后使用有历史 active 配置的 Start，并走同一 trial/ConfigStore。
+等待响应 15 秒、审批窗口 10 分钟；过期等 HTTP 清理完成再恢复历史 MQTT。
+set_mqtt_psk 仅用于已激活 PSK 连接的更高代次轮换。服务端只扩展 sweeper_vcu，
+不改变 legacy Enrollment 默认或巡防策略；不增加第二套 listener/inventory。
+
+本次未修改送餐车适配。清扫车针对 RDY 丢失 HTTP 命令，在物理 reset 后将未完成的
+核心 HTTP 阶段送回原重试流程，保留 request/token。历史生产验收材料保持原样。
+PSK MQTT 无证书时间依赖不代表首次 HTTPS 无时间依赖；固定模组的证书有效期/主机名
+限制仍存在，未关闭 seclevel 或证书时间/签名/链检查。

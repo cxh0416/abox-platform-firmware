@@ -54,6 +54,21 @@ static int prepare(void *context)
     return 1;
 }
 
+static int prepare_leds(void *context, uint8_t led_mask)
+{
+    GPIO_InitTypeDef config = {0};
+    (void)context;
+    if (!led_mask || (led_mask & (uint8_t)~7U)) return 0;
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    config.Pin = led_mask; /* PB0/PB1/PB2 only; preserve all other GPIO. */
+    HAL_GPIO_WritePin(GPIOB, config.Pin, GPIO_PIN_RESET);
+    config.Mode = GPIO_MODE_OUTPUT_PP;
+    config.Pull = GPIO_NOPULL;
+    config.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOB, &config);
+    return 1;
+}
+
 static int write_output(void *context, ABoxBoardIoOutput output, uint8_t level)
 {
     (void)context;
@@ -107,7 +122,7 @@ const ABoxBoardIoPort *ABoxBoardIoStm32_Port(void)
 {
     static const ABoxBoardIoPort port = {
         0, prepare, write_output, read_output, read_input, write_led,
-        enter_critical, exit_critical
+        enter_critical, exit_critical, prepare_leds
     };
     return &port;
 }

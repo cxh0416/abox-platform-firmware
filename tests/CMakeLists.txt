@@ -132,3 +132,7 @@ add_executable(abox_psk_station_test abox_psk_station_test.c
     ../components/ec800/src/abox_psk_station.c)
 target_link_libraries(abox_psk_station_test PRIVATE abox::ec800_tls)
 add_test(NAME abox_psk_station_test COMMAND abox_psk_station_test)
+
+add_executable(abox_ec800_diagnostics_test abox_ec800_diagnostics_test.c)
+target_link_libraries(abox_ec800_diagnostics_test PRIVATE abox::ec800)
+add_test(NAME abox_ec800_diagnostics_test COMMAND abox_ec800_diagnostics_test)

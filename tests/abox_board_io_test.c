@@ -46,6 +46,12 @@ static int write_led(void *context, ABoxBoardIoLed led, uint8_t on)
 }
 static uint32_t enter(void *context) { (void)context; return 0; }
 static void leave(void *context, uint32_t key) { (void)context; (void)key; }
+static int prepare_leds(void *context, uint8_t mask)
+{
+    Fake *f = context;
+    for (unsigned i = 0; i < 3; ++i) if (mask & (1U << i)) f->led[i] = 0;
+    return 1;
+}
 
 int main(void)
 {
@@ -53,7 +59,7 @@ int main(void)
     ABoxBoardIo io;
     ABoxBoardIoInputs sample;
     ABoxBoardIoPort port = {&f, prepare, write_output, read_output,
-                           read_input, write_led, enter, leave};
+                           read_input, write_led, enter, leave, prepare_leds};
     unsigned i;
     f.output[0] = f.output[1] = f.output[2] = f.output[3] = 1;
     f.led[0] = f.led[1] = f.led[2] = 1;
@@ -106,5 +112,24 @@ int main(void)
                               ABOX_BOARD_IO_LED_ON, 0U, 121U) == ABOX_BOARD_IO_OK);
     ABoxBoardIo_Poll(&io, 1000U);
     assert(f.led[1] == 1U);
+    f.output[0] = f.output[1] = f.output[2] = f.output[3] = 1;
+    f.led[2] = 1;
+    assert(ABoxBoardIo_LedsInit(&io, &port, 3U) == ABOX_BOARD_IO_OK);
+    assert(ABoxBoardIo_OutputSet(&io, ABOX_BOARD_IO_OUT1, 0) == ABOX_BOARD_IO_NOT_READY);
+    assert(ABoxBoardIo_InputsGet(&io, &sample) == ABOX_BOARD_IO_NOT_READY);
+    assert(ABoxBoardIo_LedSet(&io, ABOX_BOARD_IO_LED3, ABOX_BOARD_IO_LED_OFF, 0, 0) == ABOX_BOARD_IO_DENIED);
+    for (i = 0; i < 4; ++i) assert(f.output[i] == 1);
+    assert(f.led[2] == 1);
+    assert(ABoxBoardIo_LedPattern(&io, ABOX_BOARD_IO_LED1, 100, 150, 3, 1500, UINT32_MAX - 100) == ABOX_BOARD_IO_OK);
+    for (i = 0; i < 4500; ++i) {
+        uint32_t now = UINT32_MAX - 100 + i;
+        uint32_t phase = i % 2250;
+        /* Repeated same business selection must not continually restart pulses. */
+        assert(ABoxBoardIo_LedPattern(&io, ABOX_BOARD_IO_LED1, 100, 150, 3, 1500, now) == ABOX_BOARD_IO_OK);
+        ABoxBoardIo_Poll(&io, now);
+        assert(f.led[0] == (phase < 750 && phase % 250 < 100));
+        assert(f.led[2] == 1);
+    }
+    assert(ABoxBoardIo_LedPattern(&io, ABOX_BOARD_IO_LED1, UINT32_MAX, 1, 2, 1, 0) == ABOX_BOARD_IO_IO_FAILED);
     return 0;
 }
